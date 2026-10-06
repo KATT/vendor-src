@@ -34,7 +34,20 @@ jobs:
           # Trusted Publishing uses OIDC; a placeholder NODE_AUTH_TOKEN from
           # setup-node would make npm skip the OIDC exchange.
           NODE_AUTH_TOKEN: ""
-        run: pnpm exec release-it --ci --verbose
+        run: |
+          set +e
+          pnpm exec release-it --ci --verbose > /tmp/release-it.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/release-it.log
+          if [ "$code" -eq 0 ]; then
+            exit 0
+          fi
+          if grep -Fq "There are no commits since the latest tag" /tmp/release-it.log; then
+            echo "No releasable commits since the latest tag; skipping."
+            exit 0
+          fi
+          exit "$code"
 
 name: Release
 
