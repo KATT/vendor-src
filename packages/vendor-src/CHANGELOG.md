@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.7](https://github.com/KATT/vendor-src/compare/0.3.6...0.3.7) (2026-10-06)
+
+### Bug Fixes
+
+- stop writing unused .ignore; scrub README version history ([#13](https://github.com/KATT/vendor-src/issues/13)) ([cdd93e1](https://github.com/KATT/vendor-src/commit/cdd93e17238d2a3fa3fc124d4735037e017a9cfe))
+
 ## [0.3.6](https://github.com/KATT/vendor-src/compare/0.3.5...0.3.6) (2026-10-06)
 
 ### Bug Fixes
