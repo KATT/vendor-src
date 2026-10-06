@@ -14,6 +14,7 @@ import {
 	makeUpstream,
 	readFile,
 	tempDir,
+	writeFiles,
 } from "./testUtils.ts";
 
 isolateGitConfig();
@@ -118,6 +119,60 @@ describe("vendor-src CLI", () => {
 				yield* readFile(project, "vendor-src.json"),
 			);
 			assert.deepStrictEqual(removed.repos, {});
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("adopts an existing checkout without fetching or committing", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "src/index.ts": "export {}\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* installPackage(project, "lib", "1.0.0", upstream);
+
+			yield* vendorSrc(project, "adopt", "lib").pipe(Effect.flip);
+			assert.include(
+				yield* errorOutput,
+				"repos/lib does not exist. Use vendor-src add lib to create it",
+			);
+
+			yield* writeFiles(project, { "repos/lib/README.md": "manual\n" });
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "manual subtree");
+			const head = git(project, "rev-parse", "HEAD");
+
+			yield* vendorSrc(project, "adopt", "lib");
+
+			assert.strictEqual(
+				yield* readFile(project, "repos", "lib", "README.md"),
+				"manual\n",
+			);
+			assert.strictEqual(git(project, "rev-parse", "HEAD"), head);
+			const manifest = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.deepStrictEqual(manifest.repos, {
+				lib: {
+					package: "lib",
+					url: upstream,
+					version: "1.0.0",
+					ref: "lib@1.0.0",
+				},
+			});
+			assert.include(
+				yield* readFile(project, "AGENTS.md"),
+				"`lib@1.0.0` → `repos/lib`",
+			);
+
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "adopt lib");
+			yield* vendorSrc(project, "adopt", "lib").pipe(Effect.flip);
+			assert.include(
+				yield* errorOutput,
+				"repos/lib is already vendored; use vendor-src sync lib",
+			);
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
