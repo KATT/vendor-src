@@ -54,34 +54,75 @@ export function mergeVsCodeSettings(
 }
 
 /**
- * Merge `repos/` (or custom dir) into ignore files used by common formatters
- * and linters. Oxfmt/Vite+ fmt read `.prettierignore` by default.
+ * Always-written ignore files for tooling that is not Prettier/ESLint-named.
+ */
+export const ALWAYS_IGNORE_FILES = [".ignore"] as const;
+
+/**
+ * Only updated when the file already exists, so oxfmt-only projects do not get
+ * Prettier/ESLint ignore files created for them.
+ */
+export const OPTIONAL_IGNORE_FILES = [
+	".prettierignore",
+	".eslintignore",
+] as const;
+
+export const OXFMT_CONFIG_FILE = ".oxfmtrc.json";
+
+export type AlwaysIgnoreFile = (typeof ALWAYS_IGNORE_FILES)[number];
+export type OptionalIgnoreFile = (typeof OPTIONAL_IGNORE_FILES)[number];
+export type ToolingIgnoreFile = AlwaysIgnoreFile | OptionalIgnoreFile;
+
+/**
+ * Merge `repos/` into `.ignore` always, and into Prettier/ESLint ignore files
+ * only when those files already exist.
  */
 export function mergeToolingIgnoreFiles(
 	existing: Partial<Record<ToolingIgnoreFile, string | undefined>>,
 	dir: string,
-): Record<ToolingIgnoreFile, string> {
+): Partial<Record<ToolingIgnoreFile, string>> {
 	const pattern = `${dir.replace(/\/$/, "")}/`;
-	const result = {} as Record<ToolingIgnoreFile, string>;
-	for (const file of TOOLING_IGNORE_FILES) {
-		result[file] = mergeIgnoreFile(existing[file], pattern);
+	const result: Partial<Record<ToolingIgnoreFile, string>> = {
+		".ignore": mergeIgnoreFile(existing[".ignore"], pattern),
+	};
+	for (const file of OPTIONAL_IGNORE_FILES) {
+		if (existing[file] !== undefined) {
+			result[file] = mergeIgnoreFile(existing[file], pattern);
+		}
 	}
 	return result;
 }
 
-export const TOOLING_IGNORE_FILES = [
-	".prettierignore",
-	".eslintignore",
-	".ignore",
-] as const;
-
-export type ToolingIgnoreFile = (typeof TOOLING_IGNORE_FILES)[number];
+/**
+ * Ensure Oxfmt's native config excludes the vendor dir via `ignorePatterns`.
+ */
+export function mergeOxfmtConfig(
+	existingJson: string | undefined,
+	dir: string,
+): string {
+	const pattern = `${dir.replace(/\/$/, "")}/`;
+	let config: Record<string, unknown> = {};
+	if (existingJson?.trim()) {
+		try {
+			config = JSON.parse(existingJson) as Record<string, unknown>;
+		} catch {
+			config = {};
+		}
+	}
+	config.ignorePatterns = mergeStringArray(config.ignorePatterns, pattern);
+	return `${JSON.stringify(config, null, "\t")}\n`;
+}
 
 function mergeStringArray(value: unknown, item: string): string[] {
 	const current = Array.isArray(value)
 		? value.filter((entry): entry is string => typeof entry === "string")
 		: [];
-	if (!current.includes(item)) {
+	if (
+		!current.includes(item) &&
+		!current.includes(item.replace(/\/$/, "")) &&
+		!current.includes(`${item}**`) &&
+		!current.includes(`${item}/**`)
+	) {
 		current.push(item);
 	}
 	return current;

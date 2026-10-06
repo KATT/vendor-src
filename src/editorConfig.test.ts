@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
 	mergeIgnoreFile,
+	mergeOxfmtConfig,
 	mergeToolingIgnoreFiles,
 	mergeVsCodeSettings,
 } from "./editorConfig.ts";
@@ -15,14 +16,29 @@ describe(mergeIgnoreFile, () => {
 });
 
 describe(mergeToolingIgnoreFiles, () => {
-	it("writes the same pattern into formatter/linter ignore files", () => {
-		const merged = mergeToolingIgnoreFiles(
-			{ ".prettierignore": "coverage/\n" },
+	it("always writes .ignore and only updates existing legacy ignore files", () => {
+		const withoutLegacy = mergeToolingIgnoreFiles({}, "repos");
+		expect(withoutLegacy[".ignore"]).toBe("repos/\n");
+		expect(withoutLegacy[".prettierignore"]).toBeUndefined();
+		expect(withoutLegacy[".eslintignore"]).toBeUndefined();
+
+		const withLegacy = mergeToolingIgnoreFiles(
+			{ ".prettierignore": "coverage/\n", ".eslintignore": "" },
 			"repos",
 		);
-		expect(merged[".prettierignore"]).toContain("repos/");
-		expect(merged[".eslintignore"]).toBe("repos/\n");
-		expect(merged[".ignore"]).toBe("repos/\n");
+		expect(withLegacy[".prettierignore"]).toContain("repos/");
+		expect(withLegacy[".eslintignore"]).toBe("repos/\n");
+		expect(withLegacy[".ignore"]).toBe("repos/\n");
+	});
+});
+
+describe(mergeOxfmtConfig, () => {
+	it("adds ignorePatterns without dropping other oxfmt settings", () => {
+		const merged = JSON.parse(
+			mergeOxfmtConfig('{\n\t"useTabs": true\n}\n', "repos"),
+		) as { useTabs: boolean; ignorePatterns: string[] };
+		expect(merged.useTabs).toBe(true);
+		expect(merged.ignorePatterns).toContain("repos/");
 	});
 });
 
