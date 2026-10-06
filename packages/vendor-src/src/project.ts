@@ -1,6 +1,4 @@
-import { lstatSync, readlinkSync } from "node:fs";
-
-import { Console, Effect, FileSystem, Path } from "effect";
+import { Effect, FileSystem, Path } from "effect";
 
 import {
 	renderVendorDirAgentsMd,
@@ -93,32 +91,11 @@ export const updateAgentsMd = (
 		const existing = rootExists
 			? yield* fs.readFileString(rootAgents)
 			: undefined;
-		if (rootExists) {
-			try {
-				if (lstatSync(rootAgents).isSymbolicLink()) {
-					const target = readlinkSync(rootAgents);
-					yield* Console.log(
-						`Warning: AGENTS.md is a symlink to ${target}; skipping root write to avoid mutating that target.\n` +
-							`Create a real AGENTS.md (rm AGENTS.md && touch AGENTS.md) and re-run, or paste the vendor-src block into ${target} manually.`,
-					);
-				} else {
-					yield* fs.writeFileString(
-						rootAgents,
-						upsertAgentsBlock(existing, repos, dir),
-					);
-				}
-			} catch {
-				yield* fs.writeFileString(
-					rootAgents,
-					upsertAgentsBlock(existing, repos, dir),
-				);
-			}
-		} else {
-			yield* fs.writeFileString(
-				rootAgents,
-				upsertAgentsBlock(undefined, repos, dir),
-			);
-		}
+		// writeFile follows AGENTS.md symlinks (e.g. → README.md)
+		yield* fs.writeFileString(
+			rootAgents,
+			upsertAgentsBlock(existing, repos, dir),
+		);
 
 		const vendorDir = path.join(projectRoot, dir);
 		yield* fs.makeDirectory(vendorDir, { recursive: true });

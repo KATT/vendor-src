@@ -32,27 +32,24 @@ Set up vendor-src in this repo:
      (or: npm install -D vendor-src / yarn add -D vendor-src / bun add -d vendor-src)
 2. Ensure the git working tree is clean and has at least one commit.
    Commit the install (package.json / lockfile / catalog) before continuing.
-3. If AGENTS.md is a symlink (e.g. to README.md), either replace it with a
-   real AGENTS.md file or plan to paste the vendor-src block manually —
-   vendor-src will not write through the symlink.
-4. If repos/<name> already exists from a manual subtree (and there is no
+3. If repos/<name> already exists from a manual subtree (and there is no
    vendor-src.json entry), claim it:
    pnpm exec vendor-src adopt <package>
    Or remove and re-add:
    git rm -rq repos/<name> && git commit -m "Remove repos/<name>"
-5. Otherwise run: pnpm exec vendor-src add <package>
+4. Otherwise run: pnpm exec vendor-src add <package>
    Example: pnpm exec vendor-src add effect
    (package must already be installed so the matching git tag can be resolved)
-6. Commit vendor-src.json, AGENTS.md (when it is a real file), {dir}/AGENTS.md,
-   .oxfmtrc.json / editor ignores if changed, package.json (postinstall), and
-   the subtree commit vendor-src created. Review diffs: do not let oxfmt /
-   ignores get wiped.
-7. Never run formatters/linters on the vendor dir (default repos/**). vendor-src
+5. Commit vendor-src.json, AGENTS.md (or README.md if AGENTS.md symlinks to it),
+   {dir}/AGENTS.md, .oxfmtrc.json / editor ignores if changed, package.json
+   (postinstall), and the subtree commit vendor-src created. Review diffs: do
+   not let oxfmt / ignores get wiped.
+6. Never run formatters/linters on the vendor dir (default repos/**). vendor-src
    already writes .oxfmtrc.json ignorePatterns and editor excludes for that dir.
    If you add a new tool, exclude it before the first run.
-8. Prefer reading repos/<name> as read-only reference. Do not import from
+7. Prefer reading repos/<name> as read-only reference. Do not import from
    repos/ — keep importing the normal npm package.
-9. After dependency upgrades, run: pnpm exec vendor-src check
+8. After dependency upgrades, run: pnpm exec vendor-src check
    If it warns, run: pnpm exec vendor-src sync
 ```
 
@@ -81,7 +78,7 @@ pnpm exec vendor-src remove effect
 `add` / `adopt` also:
 
 - writes `vendor-src.json` (`dir` defaults to `repos` — set another folder if you prefer)
-- maintains a short managed section in root `AGENTS.md` when it is a regular file (skips symlinks)
+- maintains a short managed section in root `AGENTS.md` (follows symlinks, e.g. to `README.md`)
 - writes `{dir}/AGENTS.md` with fuller guidance for agents working inside that tree
 - writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `{dir}/`
 - if `.prettierignore` / `.eslintignore` already exist, merges `{dir}/` into them too (does not create those files)
