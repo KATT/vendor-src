@@ -61,13 +61,12 @@ describe(updateAgentsMd, () => {
 		const readme = readFileSync(join(root, "README.md"), "utf8");
 		expect(readme).toContain("# Toy projects");
 		expect(readme).toContain("<!-- vendor-src:start -->");
-		expect(readme).toContain(
-			"`effect@4.0.1` → `repos/effect` — idiomatic usage, tests, module structure, and API design",
-		);
+		expect(readme).toContain("- `effect@4.0.1` → `repos/effect`");
+		expect(readme).toContain("### Vendored packages");
 		expect(readme).toContain("<!-- vendor-src:end -->");
 
 		const vendorAgents = readFileSync(join(root, "repos", "AGENTS.md"), "utf8");
-		expect(vendorAgents).toContain("read-only reference material");
+		expect(vendorAgents).toContain("## Don'ts");
 		expect(vendorAgents).toContain("`effect@4.0.1`");
 	});
 
@@ -79,6 +78,6 @@ describe(updateAgentsMd, () => {
 
 		const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
 		expect(agents).toContain("<!-- vendor-src:start -->");
-		expect(agents).toContain("## Vendored Repositories");
+		expect(agents).toContain("## Vendored Source");
 	});
 });
