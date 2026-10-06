@@ -71,9 +71,11 @@ pnpm exec vendor-src check --strict
 # Pull drifted repos to the git tags matching currently installed versions
 pnpm exec vendor-src sync
 
-pnpm exec vendor-src list
-pnpm exec vendor-src remove effect
+pnpm exec vendor-src list   # alias: ls
+pnpm exec vendor-src remove effect   # alias: rm
 ```
+
+Commands work from any directory inside the project. `add`, `adopt`, `sync`, and `remove` require at least one commit and a clean working tree.
 
 `add` / `adopt` also:
 
@@ -169,7 +171,7 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 }
 ```
 
-Editors can validate via `$schema`. The schema is also available from the package as `vendor-src/schema.json`.
+Editors can validate via `$schema`. The schema is also available from the package as `vendor-src/schema.json`. vendor-src validates the manifest on every run and names the offending field when an entry is incomplete.
 
 When multiple installed versions exist across a workspace, vendor-src pins the highest semver.
 

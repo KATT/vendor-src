@@ -1,83 +1,42 @@
-import { rmSync } from "node:fs";
-
-import { Effect, String as EffectString } from "effect";
+import { Context, Effect, Layer, Schema, type Scope, Stream } from "effect";
+import type { PlatformError } from "effect/PlatformError";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
+import { Project } from "./project.ts";
 import { parseLsRemoteTags, pickTag } from "./tags.ts";
 
-export class GitError extends Error {
-	readonly _tag = "GitError";
-	constructor(
-		readonly command: string,
-		readonly detail: string,
-	) {
-		super(`git ${command} failed: ${detail}`);
-		this.name = "GitError";
+export class GitError extends Schema.TaggedError<GitError>()("GitError", {
+	args: Schema.Array(Schema.String),
+	detail: Schema.String,
+}) {
+	override get message() {
+		return `git ${this.args.join(" ")} failed: ${this.detail}`;
 	}
 }
 
-const runString = (label: string, args: string[]) =>
-	Effect.gen(function* () {
-		const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-		return yield* spawner.string(ChildProcess.make("git", args)).pipe(
-			Effect.map(EffectString.trim),
-			Effect.mapError((cause) => new GitError(label, String(cause))),
-		);
-	});
-
-const runInherit = (label: string, args: string[]) =>
-	Effect.gen(function* () {
-		const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-		const handle = yield* spawner.spawn(
-			ChildProcess.make("git", args, {
-				stdout: "inherit",
-				stderr: "inherit",
-			}),
-		);
-		const exitCode = yield* handle.exitCode;
-		if (Number(exitCode) !== 0) {
-			return yield* Effect.fail(
-				new GitError(label, `exit ${String(exitCode)}`),
-			);
-		}
-	}).pipe(Effect.scoped);
-
-export const ensureCleanTree = Effect.gen(function* () {
-	const status = yield* runString("status", ["status", "--porcelain"]);
-	if (status.length > 0) {
-		return yield* Effect.fail(
-			new GitError(
-				"status",
-				"working tree is not clean; commit or stash first",
-			),
-		);
+export class WorkingTreeError extends Schema.TaggedError<WorkingTreeError>()(
+	"WorkingTreeError",
+	{ reason: Schema.Literals(["no-commits", "dirty"]) },
+) {
+	override get message() {
+		return this.reason === "no-commits"
+			? "the repository has no commits yet; make an initial commit first"
+			: "working tree is not clean; commit or stash first";
 	}
-});
+}
 
-export const ensureHasCommits = runString("rev-parse", [
-	"rev-parse",
-	"HEAD",
-]).pipe(Effect.asVoid);
-
-export const listRemoteTags = (url: string) =>
-	runString("ls-remote", ["ls-remote", "--tags", url]).pipe(
-		Effect.map(parseLsRemoteTags),
-	);
-
-export const resolveTag = (url: string, packageName: string, version: string) =>
-	Effect.gen(function* () {
-		const tags = yield* listRemoteTags(url);
-		const tag = pickTag(tags, packageName, version);
-		if (!tag) {
-			return yield* Effect.fail(
-				new GitError(
-					"ls-remote",
-					`no tag matching ${packageName}@${version} in ${url}; pass --ref to override`,
-				),
-			);
-		}
-		return tag;
-	});
+export class TagNotFoundError extends Schema.TaggedError<TagNotFoundError>()(
+	"TagNotFoundError",
+	{
+		url: Schema.String,
+		packageName: Schema.String,
+		version: Schema.String,
+	},
+) {
+	override get message() {
+		return `no tag matching ${this.packageName}@${this.version} in ${this.url}; pass --ref to override`;
+	}
+}
 
 /** Prefer fully-qualified refs so tags like `effect@4.0.1` are not ambiguous. */
 export function toFetchRef(ref: string): string {
@@ -91,50 +50,160 @@ export function toFetchRef(ref: string): string {
 	return `refs/tags/${ref}`;
 }
 
-export const subtreeAdd = (prefix: string, url: string, ref: string) =>
-	runInherit("subtree add", [
-		"subtree",
-		"add",
-		`--prefix=${prefix}`,
-		url,
-		toFetchRef(ref),
-		"--squash",
-	]);
+export class Git extends Context.Service<
+	Git,
+	{
+		/** Fail unless the repository has a commit and a clean working tree. */
+		readonly ensureReady: Effect.Effect<void, GitError | WorkingTreeError>;
+		readonly resolveTag: (
+			url: string,
+			packageName: string,
+			version: string,
+		) => Effect.Effect<string, GitError | TagNotFoundError>;
+		readonly subtreeAdd: (
+			prefix: string,
+			url: string,
+			ref: string,
+		) => Effect.Effect<void, GitError>;
+		readonly subtreePull: (
+			prefix: string,
+			url: string,
+			ref: string,
+		) => Effect.Effect<void, GitError>;
+		/** Stage everything and commit; returns `false` when there was nothing to commit. */
+		readonly commitAll: (message: string) => Effect.Effect<boolean, GitError>;
+	}
+>()("vendor-src/Git") {
+	static readonly layer = Layer.effect(
+		Git,
+		Effect.gen(function* () {
+			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+			const project = yield* Project;
 
-export const subtreePull = (prefix: string, url: string, ref: string) =>
-	runInherit("subtree pull", [
-		"subtree",
-		"pull",
-		`--prefix=${prefix}`,
-		url,
-		toFetchRef(ref),
-		"--squash",
-	]);
+			const spawnFailed = <A>(
+				effect: Effect.Effect<A, GitError | PlatformError, Scope.Scope>,
+				args: ReadonlyArray<string>,
+			): Effect.Effect<A, GitError> =>
+				effect.pipe(
+					Effect.scoped,
+					Effect.catchTag("PlatformError", (cause) =>
+						Effect.fail(new GitError({ args, detail: cause.message })),
+					),
+				);
 
-/**
- * Delete a path from the working tree. Prefer filesystem remove so untracked
- * matches (e.g. `.DS_Store`) do not fail `git rm`; `commitAll` stages tracked
- * deletions via `git add -A`.
- */
-export const removePath = (path: string) =>
-	Effect.sync(() => {
-		rmSync(path, { recursive: true, force: true });
-	});
+			/** Run git in the project root and return trimmed stdout. */
+			const capture = Effect.fnUntraced(function* (
+				args: ReadonlyArray<string>,
+			) {
+				const handle = yield* spawner.spawn(
+					ChildProcess.make("git", args, { cwd: project.root }),
+				);
+				const [stdout, stderr, exitCode] = yield* Effect.all(
+					[
+						Stream.mkString(Stream.decodeText(handle.stdout)),
+						Stream.mkString(Stream.decodeText(handle.stderr)),
+						handle.exitCode,
+					],
+					{ concurrency: "unbounded" },
+				);
+				if (exitCode !== ChildProcessSpawner.ExitCode(0)) {
+					return yield* new GitError({
+						args,
+						detail: stderr.trim() || `exit code ${exitCode}`,
+					});
+				}
+				return stdout.trim();
+			}, spawnFailed);
 
-export const removePaths = (paths: readonly string[]) =>
-	Effect.gen(function* () {
-		for (const path of paths) {
-			yield* removePath(path);
-		}
-	});
+			/** Run git in the project root with output streamed to the terminal. */
+			const interactive = Effect.fnUntraced(function* (
+				args: ReadonlyArray<string>,
+			) {
+				const handle = yield* spawner.spawn(
+					ChildProcess.make("git", args, {
+						cwd: project.root,
+						stdout: "inherit",
+						stderr: "inherit",
+					}),
+				);
+				const exitCode = yield* handle.exitCode;
+				if (exitCode !== ChildProcessSpawner.ExitCode(0)) {
+					return yield* new GitError({ args, detail: `exit code ${exitCode}` });
+				}
+			}, spawnFailed);
 
-export const commitAll = (message: string) =>
-	Effect.gen(function* () {
-		yield* runString("add", ["add", "-A"]);
-		const status = yield* runString("status", ["status", "--porcelain"]);
-		if (status.length === 0) {
-			return false;
-		}
-		yield* runInherit("commit", ["commit", "-m", message]);
-		return true;
-	});
+			const ensureReady = Effect.gen(function* () {
+				yield* capture(["rev-parse", "--verify", "--quiet", "HEAD"]).pipe(
+					Effect.catchTag("GitError", () =>
+						Effect.fail(new WorkingTreeError({ reason: "no-commits" })),
+					),
+				);
+				const status = yield* capture(["status", "--porcelain"]);
+				if (status.length > 0) {
+					return yield* new WorkingTreeError({ reason: "dirty" });
+				}
+			}).pipe(Effect.withSpan("Git.ensureReady"));
+
+			const resolveTag = Effect.fn("Git.resolveTag")(function* (
+				url: string,
+				packageName: string,
+				version: string,
+			) {
+				const stdout = yield* capture(["ls-remote", "--tags", url]);
+				const tag = pickTag(parseLsRemoteTags(stdout), packageName, version);
+				if (tag === undefined) {
+					return yield* new TagNotFoundError({ url, packageName, version });
+				}
+				return tag;
+			});
+
+			const subtreeAdd = Effect.fn("Git.subtreeAdd")(function* (
+				prefix: string,
+				url: string,
+				ref: string,
+			) {
+				yield* interactive([
+					"subtree",
+					"add",
+					`--prefix=${prefix}`,
+					url,
+					toFetchRef(ref),
+					"--squash",
+				]);
+			});
+
+			const subtreePull = Effect.fn("Git.subtreePull")(function* (
+				prefix: string,
+				url: string,
+				ref: string,
+			) {
+				yield* interactive([
+					"subtree",
+					"pull",
+					`--prefix=${prefix}`,
+					url,
+					toFetchRef(ref),
+					"--squash",
+				]);
+			});
+
+			const commitAll = Effect.fn("Git.commitAll")(function* (message: string) {
+				yield* capture(["add", "-A"]);
+				const status = yield* capture(["status", "--porcelain"]);
+				if (status.length === 0) {
+					return false;
+				}
+				yield* interactive(["commit", "-m", message]);
+				return true;
+			});
+
+			return Git.of({
+				ensureReady,
+				resolveTag,
+				subtreeAdd,
+				subtreePull,
+				commitAll,
+			});
+		}),
+	);
+}

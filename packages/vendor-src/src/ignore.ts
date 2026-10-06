@@ -1,13 +1,4 @@
-import { readdirSync } from "node:fs";
-import { join, relative, sep } from "node:path";
-
 import picomatch from "picomatch";
-
-/**
- * No built-in ignore globs — only patterns from `vendor-src.json` / `--ignore`
- * are pruned.
- */
-export const DEFAULT_IGNORE: readonly string[] = [];
 
 export type IgnoreMatcher = (relativePath: string) => boolean;
 
@@ -35,57 +26,49 @@ export function compileIgnorePatterns(
 	});
 }
 
+const toPosix = (path: string) => path.replaceAll("\\", "/");
+
 export function matchesIgnore(
 	relativePath: string,
 	patterns: readonly IgnoreMatcher[],
 ): boolean {
-	const normalized = relativePath.split(sep).join("/");
+	const normalized = toPosix(relativePath);
 	return patterns.some((pattern) => pattern(normalized));
 }
 
-/** Walk a directory tree and return paths (relative to `root`) matching ignore patterns. */
-export function findIgnoredPaths(
-	root: string,
+/**
+ * Pick the paths to delete from a recursive listing of a vendored repo.
+ *
+ * Only the outermost match is returned: once a directory matches, nothing
+ * beneath it is listed separately.
+ */
+export function selectIgnoredPaths(
+	relativePaths: Iterable<string>,
 	patterns: readonly string[],
 ): string[] {
 	if (patterns.length === 0) {
 		return [];
 	}
 	const compiled = compileIgnorePatterns(patterns);
-	const ignored: string[] = [];
-
-	const visit = (absolute: string) => {
-		let entries;
-		try {
-			entries = readdirSync(absolute, { withFileTypes: true });
-		} catch {
-			return;
-		}
-
-		for (const entry of entries) {
-			const child = join(absolute, entry.name);
-			const rel = relative(root, child);
-			if (matchesIgnore(rel, compiled)) {
-				ignored.push(rel);
-				continue;
-			}
-			if (entry.isDirectory()) {
-				visit(child);
+	const selected = new Set<string>();
+	const hasSelectedAncestor = (path: string) => {
+		for (
+			let slash = path.indexOf("/");
+			slash !== -1;
+			slash = path.indexOf("/", slash + 1)
+		) {
+			if (selected.has(path.slice(0, slash))) {
+				return true;
 			}
 		}
+		return false;
 	};
-
-	visit(root);
-	return ignored.toSorted();
-}
-
-export function resolveIgnorePatterns(options: {
-	repoIgnore?: readonly string[];
-	cliIgnore?: readonly string[];
-}): string[] {
-	return [
-		...new Set([...(options.repoIgnore ?? []), ...(options.cliIgnore ?? [])]),
-	];
+	for (const path of [...relativePaths].map(toPosix).toSorted()) {
+		if (!hasSelectedAncestor(path) && matchesIgnore(path, compiled)) {
+			selected.add(path);
+		}
+	}
+	return [...selected];
 }
 
 /** Pre-0.3.4 manifests used regex strings; picomatch treats them as globs and they won't match. */

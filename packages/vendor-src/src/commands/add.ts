@@ -1,26 +1,27 @@
-import { Console, Effect, FileSystem, Option, Path } from "effect";
+import { Console, Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 
-import {
-	ensureCleanTree,
-	ensureHasCommits,
-	resolveTag,
-	subtreeAdd,
-} from "../git.ts";
-import {
-	readInstalledPackageJson,
-	resolveInstalledVersion,
-} from "../installedVersions.ts";
+import { Git } from "../git.ts";
+import { repoPrefix, setRepo, vendorDir } from "../manifest.ts";
+import { Project } from "../project.ts";
 import { pruneIgnoredPaths } from "../prune.ts";
 import { defaultVendorName, normalizeRepositoryUrl } from "../repository.ts";
 import {
-	ensurePostinstall,
-	findProjectRoot,
-	readManifest,
-	updateAgentsMd,
-	updateEditorIgnores,
-	writeManifest,
-} from "../project.ts";
+	checkoutExists,
+	CommandError,
+	ensureNotVendored,
+	nameFlag,
+	refFlag,
+	reportErrors,
+	resolveInstalledSource,
+	writeProjectFiles,
+} from "./shared.ts";
+
+const isGitUrl = (target: string) =>
+	target.startsWith("http://") ||
+	target.startsWith("https://") ||
+	target.startsWith("git@") ||
+	target.endsWith(".git");
 
 export const addCommand = Command.make(
 	"add",
@@ -28,14 +29,8 @@ export const addCommand = Command.make(
 		target: Argument.String("package").pipe(
 			Argument.withDescription("npm package name or git URL to vendor"),
 		),
-		name: Flag.String("name").pipe(
-			Flag.withDescription("Directory name under repos/"),
-			Flag.optional,
-		),
-		ref: Flag.String("ref").pipe(
-			Flag.withDescription("Git ref/tag to vendor (skips version lookup)"),
-			Flag.optional,
-		),
+		name: nameFlag,
+		ref: refFlag,
 		ignore: Flag.String("ignore").pipe(
 			Flag.withDescription(
 				"Glob matched against paths inside the vendored repo (repeatable)",
@@ -43,124 +38,89 @@ export const addCommand = Command.make(
 			Flag.atLeast(0),
 		),
 	},
-	Effect.fn(function* ({ target, name, ref, ignore }) {
-		const projectRoot = yield* findProjectRoot;
-		yield* ensureHasCommits;
-		yield* ensureCleanTree;
+	Effect.fn("vendor-src add")(function* ({ target, name, ref, ignore }) {
+		const project = yield* Project;
+		const git = yield* Git;
+		yield* git.ensureReady;
 
-		const isGitUrl =
-			target.startsWith("http://") ||
-			target.startsWith("https://") ||
-			target.startsWith("git@") ||
-			target.endsWith(".git");
-
-		let packageName = target;
-		let url: string;
-		let version: string;
-		let gitRef: string;
-
-		if (isGitUrl) {
-			url = normalizeRepositoryUrl(target) ?? target;
-			const explicitRef = Option.getOrUndefined(ref);
-			if (!explicitRef) {
-				return yield* Effect.fail(
-					new Error("when adding a git URL, pass --ref <tag>"),
-				);
-			}
-			gitRef = explicitRef;
-			version = explicitRef;
-			packageName = Option.getOrElse(name, () =>
-				defaultVendorName(
-					target
-						.replace(/\.git$/, "")
-						.split("/")
-						.pop() ?? "repo",
-				),
-			);
-		} else {
-			const installed = readInstalledPackageJson(target, projectRoot);
-			if (!installed) {
-				return yield* Effect.fail(
-					new Error(
-						`package ${target} is not installed; install it first so vendor-src can pin the matching tag`,
+		const source = isGitUrl(target)
+			? {
+					packageName: Option.getOrElse(name, () =>
+						defaultVendorName(
+							target
+								.replace(/\.git$/, "")
+								.split(/[/:]/)
+								.pop() || "repo",
+						),
 					),
-				);
-			}
-			packageName = installed.name ?? target;
-			const resolvedVersion =
-				resolveInstalledVersion(packageName, projectRoot) ?? installed.version;
-			version = resolvedVersion;
-			const normalized = normalizeRepositoryUrl(installed.repository);
-			if (!normalized) {
-				return yield* Effect.fail(
-					new Error(
-						`package ${packageName} has no repository field; pass a git URL instead`,
-					),
-				);
-			}
-			url = normalized;
-			gitRef = Option.getOrElse(ref, () => "");
-			if (!gitRef) {
-				gitRef = yield* resolveTag(url, packageName, version);
-			}
-		}
+					url: normalizeRepositoryUrl(target) ?? target,
+					version: yield* Option.match(ref, {
+						onNone: () =>
+							Effect.fail(
+								new CommandError({
+									message: "when adding a git URL, pass --ref <tag>",
+								}),
+							),
+						onSome: Effect.succeed,
+					}),
+				}
+			: yield* resolveInstalledSource(target);
 
 		const vendorName = Option.getOrElse(name, () =>
-			defaultVendorName(packageName),
+			defaultVendorName(source.packageName),
 		);
-		const manifest = yield* readManifest(projectRoot);
-		if (manifest.repos[vendorName]) {
-			return yield* Effect.fail(
-				new Error(
-					`repos/${vendorName} is already vendored; use vendor-src sync ${vendorName}`,
-				),
-			);
-		}
-
-		const fs = yield* FileSystem.FileSystem;
-		const path = yield* Path.Path;
-		const prefix = `${manifest.dir}/${vendorName}`;
-		const prefixPath = path.join(projectRoot, prefix);
-		if (yield* fs.exists(prefixPath)) {
-			return yield* Effect.fail(
-				new Error(
+		const manifest = yield* project.readManifest;
+		yield* ensureNotVendored(manifest, vendorName);
+		const prefix = repoPrefix(manifest, vendorName);
+		if (yield* checkoutExists(manifest, vendorName)) {
+			return yield* new CommandError({
+				message:
 					`${prefix} already exists on disk but is not in vendor-src.json.\n` +
-						`Claim it without re-fetching:\n  vendor-src adopt ${packageName}\n` +
-						`Or remove and re-add:\n  git rm -rq ${prefix} && git commit -m "Remove ${prefix}"\n  vendor-src add ${packageName}`,
-				),
-			);
+					`Claim it without re-fetching:\n  vendor-src adopt ${source.packageName}\n` +
+					`Or remove and re-add:\n  git rm -rq ${prefix} && git commit -m "Remove ${prefix}"\n  vendor-src add ${source.packageName}`,
+			});
 		}
 
-		const cliIgnore = ignore as ReadonlyArray<string>;
-		yield* Console.log(
-			`Vendoring ${packageName}@${version} as ${prefix} (${gitRef})`,
-		);
-		yield* subtreeAdd(prefix, url, gitRef);
+		const gitRef = Option.isSome(ref)
+			? ref.value
+			: yield* git.resolveTag(source.url, source.packageName, source.version);
 
-		manifest.repos[vendorName] = {
-			package: packageName,
-			url,
-			version,
+		yield* Console.log(
+			`Vendoring ${source.packageName}@${source.version} as ${prefix} (${gitRef})`,
+		);
+		yield* git.subtreeAdd(prefix, source.url, gitRef);
+
+		const updated = setRepo(manifest, vendorName, {
+			package: source.packageName,
+			url: source.url,
+			version: source.version,
 			ref: gitRef,
-			...(cliIgnore.length > 0 ? { ignore: [...cliIgnore] } : {}),
-		};
-		yield* pruneIgnoredPaths({
-			projectRoot,
-			vendorName,
-			manifest,
-			cliIgnore,
+			ignore,
 		});
-		yield* writeManifest(projectRoot, manifest);
-		yield* updateAgentsMd(projectRoot, manifest);
-		yield* updateEditorIgnores(projectRoot, manifest.dir);
-		yield* ensurePostinstall(projectRoot);
+		yield* pruneIgnoredPaths(updated, vendorName);
+		yield* writeProjectFiles(updated);
 
 		yield* Console.log(
-			`Added ${prefix}. Commit vendor-src.json, AGENTS.md, ${manifest.dir}/AGENTS.md, and editor ignores.`,
+			`Added ${prefix}. Commit vendor-src.json, AGENTS.md, ${vendorDir(updated)}/AGENTS.md, and editor ignores.`,
 		);
-	}),
+	}, reportErrors),
 ).pipe(
 	Command.withDescription(
-		"Vendor a dependency's source into repos/ at the installed version's git tag",
+		"Vendor a dependency's source into the vendor dir at the installed version's git tag",
 	),
+	Command.withExamples([
+		{
+			command: "vendor-src add effect",
+			description: "Vendor an installed package",
+		},
+		{
+			command:
+				"vendor-src add effect --ignore 'scratchpad/**' --ignore '**/.github/**'",
+			description: "Prune paths you never want agents to read",
+		},
+		{
+			command: "vendor-src add https://github.com/org/repo.git --ref v1.2.3",
+			description: "Vendor a git repository directly",
+		},
+	]),
 );

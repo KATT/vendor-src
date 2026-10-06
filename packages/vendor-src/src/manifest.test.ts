@@ -1,82 +1,164 @@
-import { describe, expect, it } from "vite-plus/test";
+import { readFileSync } from "node:fs";
+
+import { assert, describe, it } from "@effect/vitest";
+import { Effect, Schema } from "effect";
 
 import {
+	decodeManifest,
+	emptyManifest,
+	encodeManifest,
 	findDrift,
+	Manifest,
 	MANIFEST_SCHEMA_URL,
-	parseManifest,
-	stringifyManifest,
+	removeRepo,
+	repoPrefix,
+	setRepo,
+	VendoredRepo,
+	type VendoredRepo as VendoredRepoType,
 } from "./manifest.ts";
 
-describe(parseManifest, () => {
-	it("defaults $schema and drops legacy top-level ignore", () => {
-		const manifest = parseManifest(
-			JSON.stringify({
-				dir: "repos",
-				ignore: ["docs/**"],
-				repos: {
-					effect: {
-						package: "effect",
-						url: "https://github.com/Effect-TS/effect.git",
-						version: "4.0.1",
-						ref: "effect@4.0.1",
-						ignore: ["scratchpad"],
-					},
-				},
-			}),
-		);
-		expect(manifest.$schema).toBe(MANIFEST_SCHEMA_URL);
-		expect(manifest).not.toHaveProperty("ignore");
-		expect(manifest.repos.effect.ignore).toEqual(["scratchpad"]);
-	});
+const effect: VendoredRepoType = {
+	package: "effect",
+	url: "https://github.com/Effect-TS/effect.git",
+	version: "4.0.1",
+	ref: "effect@4.0.1",
+};
+
+describe("decodeManifest", () => {
+	it.effect("defaults $schema and dir and drops legacy top-level ignore", () =>
+		Effect.gen(function* () {
+			const manifest = yield* decodeManifest(
+				JSON.stringify({
+					ignore: ["docs/**"],
+					repos: { effect: { ...effect, ignore: ["scratchpad"] } },
+				}),
+			);
+			assert.strictEqual(manifest.$schema, MANIFEST_SCHEMA_URL);
+			assert.strictEqual(manifest.dir, "repos");
+			assert.notProperty(manifest, "ignore");
+			assert.deepStrictEqual(manifest.repos.effect?.ignore, ["scratchpad"]);
+		}),
+	);
+
+	it.effect("fails with the file path when a repo is missing fields", () =>
+		Effect.gen(function* () {
+			const error = yield* decodeManifest(
+				JSON.stringify({ repos: { effect: { package: "effect" } } }),
+			).pipe(Effect.flip);
+			assert.strictEqual(error._tag, "ManifestError");
+			assert.include(error.message, "vendor-src.json is invalid");
+			assert.include(error.message, "url");
+		}),
+	);
+
+	it.effect("fails on malformed JSON", () =>
+		Effect.gen(function* () {
+			const error = yield* decodeManifest("{", "custom.json").pipe(Effect.flip);
+			assert.include(error.message, "custom.json is invalid");
+		}),
+	);
 });
 
-describe(stringifyManifest, () => {
-	it("writes $schema and omits empty per-repo ignore arrays", () => {
-		const raw = stringifyManifest({
-			dir: "repos",
-			repos: {
-				effect: {
-					package: "effect",
-					url: "https://github.com/Effect-TS/effect.git",
-					version: "4.0.1",
-					ref: "effect@4.0.1",
-					ignore: [],
-				},
-			},
+describe("encodeManifest", () => {
+	it.effect("round-trips with tabs and a trailing newline", () =>
+		Effect.gen(function* () {
+			const manifest = setRepo(emptyManifest, "effect", effect);
+			const raw = encodeManifest(manifest);
+			assert.isTrue(raw.endsWith("}\n"));
+			assert.include(raw, '\n\t"dir": "repos"');
+			assert.deepStrictEqual(yield* decodeManifest(raw), manifest);
+		}),
+	);
+});
+
+describe("setRepo / removeRepo", () => {
+	it("omits empty ignore arrays and does not mutate the input", () => {
+		const manifest = setRepo(emptyManifest, "effect", {
+			...effect,
+			ignore: [],
 		});
-		const parsed = JSON.parse(raw) as {
-			$schema: string;
-			repos: { effect: { ignore?: string[] } };
-		};
-		expect(parsed.$schema).toBe(MANIFEST_SCHEMA_URL);
-		expect(parsed.repos.effect.ignore).toBeUndefined();
-		expect(raw).not.toContain('"ignore"');
+		assert.deepStrictEqual(manifest.repos.effect, effect);
+		assert.deepStrictEqual(emptyManifest.repos, {});
+		assert.notInclude(encodeManifest(manifest), '"ignore"');
+
+		const removed = removeRepo(manifest, "effect");
+		assert.deepStrictEqual(removed.repos, {});
+		assert.property(manifest.repos, "effect");
+	});
+
+	it("builds checkout prefixes without trailing slashes", () => {
+		assert.strictEqual(
+			repoPrefix({ ...emptyManifest, dir: "vendor/" }, "effect"),
+			"vendor/effect",
+		);
 	});
 });
 
-describe(findDrift, () => {
-	it("reports version mismatches", () => {
-		const manifest = parseManifest(
-			JSON.stringify({
-				dir: "repos",
-				repos: {
-					effect: {
-						package: "effect",
-						url: "https://github.com/Effect-TS/effect.git",
-						version: "4.0.0",
-						ref: "effect@4.0.0",
-					},
-				},
-			}),
+describe("findDrift", () => {
+	it("reports version mismatches and missing installs", () => {
+		const manifest = setRepo(
+			setRepo(emptyManifest, "effect", { ...effect, version: "4.0.0" }),
+			"other",
+			{ ...effect, package: "other" },
 		);
-		const drifts = findDrift(manifest, new Map([["effect", "4.0.1"]]));
-		expect(drifts).toEqual([
-			{
-				name: "effect",
-				package: "effect",
-				vendored: "4.0.0",
-				installed: "4.0.1",
-			},
-		]);
+		assert.deepStrictEqual(
+			findDrift(manifest, new Map([["effect", "4.0.1"]])),
+			[
+				{
+					name: "effect",
+					package: "effect",
+					vendored: "4.0.0",
+					installed: "4.0.1",
+				},
+				{
+					name: "other",
+					package: "other",
+					vendored: "4.0.1",
+					installed: undefined,
+				},
+			],
+		);
+	});
+});
+
+describe("published JSON schema", () => {
+	const jsonSchema = JSON.parse(
+		readFileSync(
+			new URL("../schema/vendor-src.schema.json", import.meta.url),
+			"utf8",
+		),
+	) as {
+		properties: Record<string, unknown>;
+		$defs: {
+			vendoredRepo: { required: string[]; properties: Record<string, unknown> };
+		};
+	};
+
+	it("describes the same fields as the Effect schema", () => {
+		assert.deepStrictEqual(
+			Object.keys(jsonSchema.properties).toSorted(),
+			Object.keys(Manifest.fields).toSorted(),
+		);
+		assert.deepStrictEqual(
+			Object.keys(jsonSchema.$defs.vendoredRepo.properties).toSorted(),
+			Object.keys(VendoredRepo.fields).toSorted(),
+		);
+	});
+
+	it("requires the same repo fields as the Effect schema", () => {
+		const required = Object.entries(VendoredRepo.fields)
+			.filter(([key]) => {
+				const withoutKey = { ...effect, ignore: ["x"] } as Record<
+					string,
+					unknown
+				>;
+				delete withoutKey[key];
+				return !Schema.is(VendoredRepo)(withoutKey);
+			})
+			.map(([key]) => key);
+		assert.deepStrictEqual(
+			jsonSchema.$defs.vendoredRepo.required.toSorted(),
+			required.toSorted(),
+		);
 	});
 });

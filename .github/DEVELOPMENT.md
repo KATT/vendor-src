@@ -48,6 +48,10 @@ pnpm test
 pnpm test --coverage
 ```
 
+Effect code is tested with [`@effect/vitest`](https://github.com/Effect-TS/effect/tree/main/packages/vitest) (`it.effect` / `it.live`). Service and CLI tests run real `git` against temporary repositories (see `src/testUtils.ts`), so `git` with `git subtree` must be on your `PATH`.
+
+`pnpm-workspace.yaml` pins `vitest` and aliases `vite` to the copies bundled by Vite+, so `@effect/vitest` shares the runner used by `vp test`.
+
 ## Type Checking
 
 ```shell
