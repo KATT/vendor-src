@@ -65,11 +65,6 @@ function applyVsCodeExcludes(
 }
 
 /**
- * Always-written ignore files for tooling that is not Prettier/ESLint-named.
- */
-export const ALWAYS_IGNORE_FILES = [".ignore"] as const;
-
-/**
  * Only updated when the file already exists, so oxfmt-only projects do not get
  * Prettier/ESLint ignore files created for them.
  */
@@ -80,22 +75,19 @@ export const OPTIONAL_IGNORE_FILES = [
 
 export const OXFMT_CONFIG_FILE = ".oxfmtrc.json";
 
-export type AlwaysIgnoreFile = (typeof ALWAYS_IGNORE_FILES)[number];
 export type OptionalIgnoreFile = (typeof OPTIONAL_IGNORE_FILES)[number];
-export type ToolingIgnoreFile = AlwaysIgnoreFile | OptionalIgnoreFile;
+export type ToolingIgnoreFile = OptionalIgnoreFile;
 
 /**
- * Merge `repos/` into `.ignore` always, and into Prettier/ESLint ignore files
- * only when those files already exist.
+ * Merge `repos/` into Prettier/ESLint ignore files only when those files
+ * already exist. Oxfmt uses `.oxfmtrc.json` `ignorePatterns` instead.
  */
 export function mergeToolingIgnoreFiles(
 	existing: Partial<Record<ToolingIgnoreFile, string | undefined>>,
 	dir: string,
 ): Partial<Record<ToolingIgnoreFile, string>> {
 	const pattern = `${dir.replace(/\/$/, "")}/`;
-	const result: Partial<Record<ToolingIgnoreFile, string>> = {
-		".ignore": mergeIgnoreFile(existing[".ignore"], pattern),
-	};
+	const result: Partial<Record<ToolingIgnoreFile, string>> = {};
 	for (const file of OPTIONAL_IGNORE_FILES) {
 		if (existing[file] !== undefined) {
 			result[file] = mergeIgnoreFile(existing[file], pattern);

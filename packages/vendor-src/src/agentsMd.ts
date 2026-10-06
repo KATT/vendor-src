@@ -30,7 +30,7 @@ export function renderAgentsBlock(
 		`Formatters and linters must **never** rewrite \`${root}/\`. Running oxfmt/Vite+ fmt (or any formatter) across the repo without excludes will churn thousands of upstream files.`,
 		"",
 		"- Do not run format/lint/fix commands that include this directory",
-		`- Prefer project scripts that already exclude \`${root}/\` (see \`.ignore\`, \`.oxfmtrc.json\`, and editor settings)`,
+		`- Prefer project scripts that already exclude \`${root}/\` (see \`.oxfmtrc.json\` and editor settings)`,
 		`- If you add a new formatter or linter, exclude \`${root}/**\` before the first run`,
 		`- After vendoring updates, only commit intentional \`vendor-src\` metadata changes plus the subtree commit — never mass-format upstream sources`,
 		"",

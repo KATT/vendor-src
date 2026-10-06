@@ -16,11 +16,8 @@ describe(mergeIgnoreFile, () => {
 });
 
 describe(mergeToolingIgnoreFiles, () => {
-	it("always writes .ignore and only updates existing legacy ignore files", () => {
-		const withoutLegacy = mergeToolingIgnoreFiles({}, "repos");
-		expect(withoutLegacy[".ignore"]).toBe("repos/\n");
-		expect(withoutLegacy[".prettierignore"]).toBeUndefined();
-		expect(withoutLegacy[".eslintignore"]).toBeUndefined();
+	it("only updates existing Prettier/ESLint ignore files", () => {
+		expect(mergeToolingIgnoreFiles({}, "repos")).toEqual({});
 
 		const withLegacy = mergeToolingIgnoreFiles(
 			{ ".prettierignore": "coverage/\n", ".eslintignore": "" },
@@ -28,7 +25,6 @@ describe(mergeToolingIgnoreFiles, () => {
 		);
 		expect(withLegacy[".prettierignore"]).toContain("repos/");
 		expect(withLegacy[".eslintignore"]).toBe("repos/\n");
-		expect(withLegacy[".ignore"]).toBe("repos/\n");
 	});
 });
 
@@ -70,14 +66,28 @@ describe(mergeOxfmtConfig, () => {
 });
 
 describe(mergeVsCodeSettings, () => {
-	it("excludes the vendor dir from search and auto-imports", () => {
-		const settings = JSON.parse(mergeVsCodeSettings(undefined, "repos")) as {
-			"search.exclude": Record<string, boolean>;
-			"typescript.preferences.autoImportFileExcludePatterns": string[];
+	it("adds exclude patterns", () => {
+		const merged = JSON.parse(mergeVsCodeSettings(undefined, "repos")) as {
+			"files.exclude": Record<string, boolean>;
 		};
-		expect(settings["search.exclude"]["repos/**"]).toBe(true);
-		expect(
-			settings["typescript.preferences.autoImportFileExcludePatterns"],
-		).toContain("repos/**");
+		expect(merged["files.exclude"]["repos/**"]).toBe(true);
+	});
+
+	it("preserves existing settings when unchanged", () => {
+		const existing = `{
+	"files.exclude": {
+		"repos/**": true
+	},
+	"typescript.preferences.autoImportFileExcludePatterns": ["repos/**"],
+	"javascript.preferences.autoImportFileExcludePatterns": ["repos/**"],
+	"files.watcherExclude": {
+		"repos/**": true
+	},
+	"search.exclude": {
+		"repos/**": true
+	}
+}
+`;
+		expect(mergeVsCodeSettings(existing, "repos")).toBe(existing);
 	});
 });
