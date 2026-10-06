@@ -12,21 +12,21 @@ describe(parseManifest, () => {
 		const manifest = parseManifest(
 			JSON.stringify({
 				dir: "repos",
-				ignore: ["(^|/)docs(/|$)"],
+				ignore: ["docs/**"],
 				repos: {
 					effect: {
 						package: "effect",
 						url: "https://github.com/Effect-TS/effect.git",
 						version: "4.0.1",
 						ref: "effect@4.0.1",
-						ignore: ["(^|/)scratchpad(/|$)"],
+						ignore: ["scratchpad"],
 					},
 				},
 			}),
 		);
 		expect(manifest.$schema).toBe(MANIFEST_SCHEMA_URL);
 		expect(manifest).not.toHaveProperty("ignore");
-		expect(manifest.repos.effect.ignore).toEqual(["(^|/)scratchpad(/|$)"]);
+		expect(manifest.repos.effect.ignore).toEqual(["scratchpad"]);
 	});
 });
 

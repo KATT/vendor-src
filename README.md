@@ -129,14 +129,14 @@ export default defineConfig({
 
 ## Ignore patterns (subtree pruning)
 
-By default, after each subtree add/pull, vendor-src also **deletes** matching paths inside the vendored tree and commits that prune:
+By default, after each subtree add/pull (and on `sync` even when already current), vendor-src also **deletes** matching paths inside the vendored tree and commits that prune:
 
-- `.DS_Store`
-- nested `repos/`
-- `node_modules/`
-- `.git/`
+- `**/.DS_Store`
+- `**/repos/**`
+- `**/node_modules/**`
+- `**/.git/**`
 
-Add more regexes **per vendored repo** in `vendor-src.json`, or pass `--ignore` to `add`:
+Add more **globs** per vendored repo in `vendor-src.json`, or pass `--ignore` to `add`. Patterns match posix paths relative to that repo root; a trailing `/**` also matches the directory itself:
 
 ```json
 {
@@ -148,7 +148,7 @@ Add more regexes **per vendored repo** in `vendor-src.json`, or pass `--ignore` 
 			"url": "https://github.com/Effect-TS/effect.git",
 			"version": "4.0.1",
 			"ref": "effect@4.0.1",
-			"ignore": ["(^|/)docs(/|$)", "(^|/)scratchpad(/|$)"]
+			"ignore": ["docs/**", "scratchpad", "migration/**", "ai-docs/**"]
 		}
 	}
 }

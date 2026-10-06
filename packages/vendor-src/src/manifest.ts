@@ -8,7 +8,7 @@ export interface VendoredRepo {
 	url: string;
 	version: string;
 	ref: string;
-	/** Extra path regexes to prune from this vendored repo after subtree add/pull. */
+	/** Extra path globs to prune from this vendored repo after subtree add/pull. */
 	ignore?: string[];
 }
 
