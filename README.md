@@ -40,6 +40,33 @@ pnpm exec vendor-src remove effect
 - merges editor excludes into `.vscode/settings.json` and `.ignore`
 - adds a `postinstall` script that runs `vendor-src check`
 
+## Ignore patterns
+
+By default, after each subtree add/pull, vendor-src prunes paths matching:
+
+- `.DS_Store`
+- nested `repos/`
+- `node_modules/`
+- `.git/`
+
+Add more regexes globally or per repo in `vendor-src.json`, or pass `--ignore` to `add`:
+
+```json
+{
+	"dir": "repos",
+	"ignore": ["(^|/)docs(/|$)"],
+	"repos": {
+		"effect": {
+			"package": "effect",
+			"url": "https://github.com/Effect-TS/effect.git",
+			"version": "4.0.1",
+			"ref": "effect@4.0.1",
+			"ignore": ["(^|/)scratchpad(/|$)"]
+		}
+	}
+}
+```
+
 ## Manifest
 
 ```json

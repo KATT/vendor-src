@@ -11,6 +11,7 @@ import {
 	readInstalledPackageJson,
 	resolveInstalledVersion,
 } from "../installedVersions.ts";
+import { pruneIgnoredPaths } from "../prune.ts";
 import { defaultVendorName, normalizeRepositoryUrl } from "../repository.ts";
 import {
 	ensurePostinstall,
@@ -35,8 +36,14 @@ export const addCommand = Command.make(
 			Flag.withDescription("Git ref/tag to vendor (skips version lookup)"),
 			Flag.optional,
 		),
+		ignore: Flag.String("ignore").pipe(
+			Flag.withDescription(
+				"Regex matched against paths inside the vendored repo (repeatable)",
+			),
+			Flag.atLeast(0),
+		),
 	},
-	Effect.fn(function* ({ target, name, ref }) {
+	Effect.fn(function* ({ target, name, ref, ignore }) {
 		const projectRoot = yield* findProjectRoot;
 		yield* ensureHasCommits;
 		yield* ensureCleanTree;
@@ -110,6 +117,7 @@ export const addCommand = Command.make(
 			);
 		}
 
+		const cliIgnore = ignore as ReadonlyArray<string>;
 		const prefix = `${manifest.dir}/${vendorName}`;
 		yield* Console.log(
 			`Vendoring ${packageName}@${version} as ${prefix} (${gitRef})`,
@@ -121,14 +129,21 @@ export const addCommand = Command.make(
 			url,
 			version,
 			ref: gitRef,
+			...(cliIgnore.length > 0 ? { ignore: [...cliIgnore] } : {}),
 		};
+		yield* pruneIgnoredPaths({
+			projectRoot,
+			vendorName,
+			manifest,
+			cliIgnore,
+		});
 		yield* writeManifest(projectRoot, manifest);
 		yield* updateAgentsMd(projectRoot, manifest);
 		yield* updateEditorIgnores(projectRoot, manifest.dir);
 		yield* ensurePostinstall(projectRoot);
 
 		yield* Console.log(
-			`Added ${prefix}. Commit the subtree, ${"vendor-src.json"}, AGENTS.md, and editor ignores.`,
+			`Added ${prefix}. Commit ${"vendor-src.json"}, AGENTS.md, and editor ignores.`,
 		);
 	}),
 ).pipe(

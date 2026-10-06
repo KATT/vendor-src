@@ -8,6 +8,7 @@ import {
 	subtreePull,
 } from "../git.ts";
 import { resolveInstalledVersion } from "../installedVersions.ts";
+import { pruneIgnoredPaths } from "../prune.ts";
 import {
 	findProjectRoot,
 	readManifest,
@@ -70,6 +71,11 @@ export const syncCommand = Command.make(
 				version: installed,
 				ref,
 			};
+			yield* pruneIgnoredPaths({
+				projectRoot,
+				vendorName: name,
+				manifest,
+			});
 			updated += 1;
 		}
 

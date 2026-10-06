@@ -6,6 +6,12 @@ export {
 } from "./agentsMd.ts";
 export { mergeIgnoreFile, mergeVsCodeSettings } from "./editorConfig.ts";
 export {
+	DEFAULT_IGNORE,
+	findIgnoredPaths,
+	matchesIgnore,
+	resolveIgnorePatterns,
+} from "./ignore.ts";
+export {
 	findDrift,
 	MANIFEST_FILENAME,
 	parseManifest,

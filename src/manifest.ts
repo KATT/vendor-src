@@ -5,15 +5,23 @@ export interface VendoredRepo {
 	url: string;
 	version: string;
 	ref: string;
+	/** Extra path regexes to prune from this vendored repo after subtree add/pull. */
+	ignore?: string[];
 }
 
 export interface VendorSrcManifest {
 	dir: string;
+	/**
+	 * Regex patterns matched against paths relative to each vendored repo root.
+	 * Defaults always include `.DS_Store`, nested `repos/`, `node_modules/`, and `.git/`.
+	 */
+	ignore?: string[];
 	repos: Record<string, VendoredRepo>;
 }
 
 export const emptyManifest = (): VendorSrcManifest => ({
 	dir: "repos",
+	ignore: [],
 	repos: {},
 });
 
@@ -24,6 +32,11 @@ export function parseManifest(raw: string): VendorSrcManifest {
 			typeof parsed.dir === "string" && parsed.dir.length > 0
 				? parsed.dir
 				: "repos",
+		ignore: Array.isArray(parsed.ignore)
+			? parsed.ignore.filter(
+					(entry): entry is string => typeof entry === "string",
+				)
+			: [],
 		repos:
 			parsed.repos &&
 			typeof parsed.repos === "object" &&

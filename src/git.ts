@@ -111,3 +111,21 @@ export const subtreePull = (prefix: string, url: string, ref: string) =>
 
 export const removePath = (path: string) =>
 	runInherit("rm", ["rm", "-rf", path]);
+
+export const removePaths = (paths: readonly string[]) =>
+	Effect.gen(function* () {
+		for (const path of paths) {
+			yield* removePath(path);
+		}
+	});
+
+export const commitAll = (message: string) =>
+	Effect.gen(function* () {
+		yield* runString("add", ["add", "-A"]);
+		const status = yield* runString("status", ["status", "--porcelain"]);
+		if (status.length === 0) {
+			return false;
+		}
+		yield* runInherit("commit", ["commit", "-m", message]);
+		return true;
+	});
