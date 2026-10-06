@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1](https://github.com/KATT/vendor-src/compare/0.6.0...0.6.1) (2026-10-06)
+
+### Bug Fixes
+
+- **sync:** stop depending on git subtree history ([#25](https://github.com/KATT/vendor-src/issues/25)) ([e4c1552](https://github.com/KATT/vendor-src/commit/e4c1552a0caab05ffd3f0379313511b50cd0cb61)), references [#23](https://github.com/KATT/vendor-src/issues/23)
+
 ## [0.6.0](https://github.com/KATT/vendor-src/compare/0.5.0...0.6.0) (2026-10-06)
 
 ### Features
