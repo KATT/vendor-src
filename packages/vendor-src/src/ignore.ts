@@ -1,24 +1,48 @@
 import { readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
-/** Default ignore regexes applied to every vendored repo (posix paths). */
+import picomatch from "picomatch";
+
+/** Default ignore globs applied to every vendored repo (posix paths). */
 export const DEFAULT_IGNORE: readonly string[] = [
-	"(^|/)\\.DS_Store$",
-	"(^|/)repos(/|$)",
-	"(^|/)node_modules(/|$)",
-	"(^|/)\\.git(/|$)",
+	"**/.DS_Store",
+	"**/repos/**",
+	"**/node_modules/**",
+	"**/.git/**",
 ];
 
-export function compileIgnorePatterns(patterns: readonly string[]): RegExp[] {
-	return patterns.map((pattern) => new RegExp(pattern));
+export type IgnoreMatcher = (relativePath: string) => boolean;
+
+/**
+ * Compile glob patterns into matchers.
+ *
+ * Patterns are matched against posix paths relative to the vendored repo root.
+ * A pattern ending in `/**` also matches the directory itself so pruning can
+ * remove the whole tree in one step.
+ */
+export function compileIgnorePatterns(
+	patterns: readonly string[],
+): IgnoreMatcher[] {
+	return patterns.map((pattern) => {
+		const match = picomatch(pattern, { dot: true });
+		const directoryPattern = pattern.endsWith("/**")
+			? pattern.slice(0, -3)
+			: undefined;
+		const matchDirectory =
+			directoryPattern && directoryPattern.length > 0
+				? picomatch(directoryPattern, { dot: true })
+				: undefined;
+		return (relativePath: string) =>
+			match(relativePath) || Boolean(matchDirectory?.(relativePath));
+	});
 }
 
 export function matchesIgnore(
 	relativePath: string,
-	patterns: readonly RegExp[],
+	patterns: readonly IgnoreMatcher[],
 ): boolean {
 	const normalized = relativePath.split(sep).join("/");
-	return patterns.some((pattern) => pattern.test(normalized));
+	return patterns.some((pattern) => pattern(normalized));
 }
 
 /** Walk a directory tree and return paths (relative to `root`) matching ignore patterns. */

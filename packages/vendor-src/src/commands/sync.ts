@@ -55,28 +55,29 @@ export const syncCommand = Command.make(
 				continue;
 			}
 
+			const prefix = `${manifest.dir}/${name}`;
 			if (installed === entry.version) {
 				yield* Console.log(`${name}: already at ${entry.version}`);
-				continue;
+			} else {
+				const ref = yield* resolveTag(entry.url, entry.package, installed);
+				yield* Console.log(
+					`Syncing ${name}: ${entry.version} -> ${installed} (${ref})`,
+				);
+				yield* subtreePull(prefix, entry.url, ref);
+				manifest.repos[name] = {
+					...entry,
+					version: installed,
+					ref,
+				};
+				updated += 1;
 			}
 
-			const ref = yield* resolveTag(entry.url, entry.package, installed);
-			const prefix = `${manifest.dir}/${name}`;
-			yield* Console.log(
-				`Syncing ${name}: ${entry.version} -> ${installed} (${ref})`,
-			);
-			yield* subtreePull(prefix, entry.url, ref);
-			manifest.repos[name] = {
-				...entry,
-				version: installed,
-				ref,
-			};
+			// Always prune so ignore-pattern edits apply without a version bump.
 			yield* pruneIgnoredPaths({
 				projectRoot,
 				vendorName: name,
 				manifest,
 			});
-			updated += 1;
 		}
 
 		if (updated > 0) {

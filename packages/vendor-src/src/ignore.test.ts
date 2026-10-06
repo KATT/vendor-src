@@ -17,6 +17,7 @@ describe(matchesIgnore, () => {
 	it("matches nested repos directories", () => {
 		expect(matchesIgnore("repos/effect", patterns)).toBe(true);
 		expect(matchesIgnore("packages/foo/repos/bar", patterns)).toBe(true);
+		expect(matchesIgnore("repos", patterns)).toBe(true);
 	});
 
 	it("matches .DS_Store", () => {
@@ -27,17 +28,25 @@ describe(matchesIgnore, () => {
 	it("does not match normal source", () => {
 		expect(matchesIgnore("packages/effect/src/index.ts", patterns)).toBe(false);
 	});
+
+	it("matches user globs including directory/**", () => {
+		const custom = compileIgnorePatterns(["scratchpad", "docs/**"]);
+		expect(matchesIgnore("scratchpad", custom)).toBe(true);
+		expect(matchesIgnore("docs", custom)).toBe(true);
+		expect(matchesIgnore("docs/guide.md", custom)).toBe(true);
+		expect(matchesIgnore("src/docs", custom)).toBe(false);
+	});
 });
 
 describe(resolveIgnorePatterns, () => {
 	it("merges defaults with per-repo and CLI overrides", () => {
 		const patterns = resolveIgnorePatterns({
-			repoIgnore: ["(^|/)docs(/|$)"],
-			cliIgnore: ["(^|/)scratchpad(/|$)"],
+			repoIgnore: ["docs"],
+			cliIgnore: ["scratchpad/**"],
 		});
-		expect(patterns).toContain("(^|/)repos(/|$)");
-		expect(patterns).toContain("(^|/)docs(/|$)");
-		expect(patterns).toContain("(^|/)scratchpad(/|$)");
+		expect(patterns).toContain("**/repos/**");
+		expect(patterns).toContain("docs");
+		expect(patterns).toContain("scratchpad/**");
 	});
 });
 

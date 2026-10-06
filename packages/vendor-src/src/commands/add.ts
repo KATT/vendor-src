@@ -38,7 +38,7 @@ export const addCommand = Command.make(
 		),
 		ignore: Flag.String("ignore").pipe(
 			Flag.withDescription(
-				"Regex matched against paths inside the vendored repo (repeatable)",
+				"Glob matched against paths inside the vendored repo (repeatable)",
 			),
 			Flag.atLeast(0),
 		),
