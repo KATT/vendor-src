@@ -18,11 +18,13 @@
 		"url": "git+https://github.com/KATT/vendor-src.git"
 	},
 	"bin": {
-		"vendor-src": "./dist/bin.mjs"
+		"vendor-src": "./bin/vendor-src.js"
 	},
 	"files": [
+		"bin/",
 		"dist/",
-		"schema/"
+		"schema/",
+		"scripts/"
 	],
 	"type": "module",
 	"sideEffects": false,
