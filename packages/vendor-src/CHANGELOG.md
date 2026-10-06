@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.3](https://github.com/KATT/vendor-src/compare/0.3.2...0.3.3) (2026-10-06)
+
+### Bug Fixes
+
+- nested workspace globs, adopt, and agent install friction ([#9](https://github.com/KATT/vendor-src/issues/9)) ([35a3553](https://github.com/KATT/vendor-src/commit/35a3553b2de5de41a88ebb1c3807070c419aed1c)), closes [#000](https://github.com/KATT/vendor-src/issues/000)
+
 ## [0.3.2](https://github.com/KATT/vendor-src/compare/0.3.1...0.3.2) (2026-10-06)
 
 ### Bug Fixes
