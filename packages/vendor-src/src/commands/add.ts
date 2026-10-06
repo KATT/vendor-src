@@ -124,7 +124,9 @@ export const addCommand = Command.make(
 		if (yield* fs.exists(prefixPath)) {
 			return yield* Effect.fail(
 				new Error(
-					`${prefix} already exists on disk but is not in vendor-src.json. Remove it first:\n  git rm -rq ${prefix} && git commit -m "Remove ${prefix}"\nThen re-run: vendor-src add ${packageName}`,
+					`${prefix} already exists on disk but is not in vendor-src.json.\n` +
+						`Claim it without re-fetching:\n  vendor-src adopt ${packageName}\n` +
+						`Or remove and re-add:\n  git rm -rq ${prefix} && git commit -m "Remove ${prefix}"\n  vendor-src add ${packageName}`,
 				),
 			);
 		}

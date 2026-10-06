@@ -17,11 +17,8 @@ export function discoverWorkspaceRoots(projectRoot: string): WorkspaceRoots {
 
 	if (existsSync(pnpmWorkspace)) {
 		const text = readFileSync(pnpmWorkspace, "utf8");
-		for (const match of text.matchAll(/^\s*-\s*['"]?([^'"#\n]+)['"]?\s*$/gm)) {
-			const pattern = match[1]?.trim();
-			if (pattern) {
-				packages.push(...expandGlobDirs(projectRoot, pattern));
-			}
+		for (const pattern of parsePnpmWorkspacePackages(text)) {
+			packages.push(...expandGlobDirs(projectRoot, pattern));
 		}
 	}
 
@@ -44,34 +41,88 @@ export function discoverWorkspaceRoots(projectRoot: string): WorkspaceRoots {
 	return { root: projectRoot, packages: [...new Set(packages)] };
 }
 
-function expandGlobDirs(root: string, pattern: string): string[] {
-	// Support simple patterns: "packages/*", "apps/*", or a single relative path.
-	if (!pattern.includes("*")) {
-		const path = join(root, pattern);
-		return existsSync(path) ? [path] : [];
+/**
+ * Extract `packages:` glob entries from pnpm-workspace.yaml.
+ * Ignores catalog / onlyBuiltDependencies / other list sections.
+ */
+export function parsePnpmWorkspacePackages(text: string): string[] {
+	const lines = text.split(/\r?\n/);
+	const patterns: string[] = [];
+	let inPackages = false;
+	for (const line of lines) {
+		if (/^\s*#/.test(line) || line.trim() === "") {
+			continue;
+		}
+		const section = line.match(/^([A-Za-z][\w-]*)\s*:/);
+		if (section) {
+			inPackages = section[1] === "packages";
+			continue;
+		}
+		if (!inPackages) {
+			continue;
+		}
+		const item = line.match(/^\s*-\s*['"]?([^'"#\n]+?)['"]?\s*(?:#.*)?$/);
+		if (item?.[1]) {
+			patterns.push(item[1].trim());
+		}
+	}
+	return patterns;
+}
+
+/** Expand workspace globs, including nested patterns like projects slash-star slash-star. */
+export function expandGlobDirs(root: string, pattern: string): string[] {
+	const normalized = pattern.replace(/\\/g, "/").replace(/\/$/, "");
+	if (!normalized) {
+		return [];
+	}
+	if (normalized.includes("**")) {
+		// Double-star is uncommon for workspace roots; skip for now.
+		return [];
+	}
+	return expandGlobParts(root, normalized.split("/"));
+}
+
+function expandGlobParts(base: string, parts: string[]): string[] {
+	if (parts.length === 0) {
+		try {
+			return existsSync(base) && statSync(base).isDirectory() ? [base] : [];
+		} catch {
+			return [];
+		}
 	}
 
-	const [prefix, ...rest] = pattern.split("*");
-	if (rest.join("*").includes("*")) {
-		// Nested globs are uncommon for workspaces; skip for v1.
+	const [head, ...tail] = parts;
+	if (head === undefined) {
 		return [];
 	}
 
-	const base = join(root, prefix.replace(/\/$/, ""));
-	if (!existsSync(base)) {
+	if (head === "*") {
+		if (!existsSync(base)) {
+			return [];
+		}
+		try {
+			return readdirSync(base).flatMap((name) => {
+				const next = join(base, name);
+				try {
+					if (!statSync(next).isDirectory()) {
+						return [];
+					}
+				} catch {
+					return [];
+				}
+				return expandGlobParts(next, tail);
+			});
+		} catch {
+			return [];
+		}
+	}
+
+	if (head.includes("*")) {
+		// Partial segment globs (e.g. `pkg-*`) are rare; skip for v1.
 		return [];
 	}
 
-	const suffix = rest[0] ?? "";
-	return readdirSync(base)
-		.map((name) => join(base, name + suffix))
-		.filter((path) => {
-			try {
-				return statSync(path).isDirectory();
-			} catch {
-				return false;
-			}
-		});
+	return expandGlobParts(join(base, head), tail);
 }
 
 /** Resolve the highest installed version of a package across workspace roots. */

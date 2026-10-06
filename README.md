@@ -13,6 +13,8 @@ Coding agents are better at exploring source than reading documentation. `node_m
 ```shell
 pnpm add -D vendor-src
 # pnpm workspaces: pnpm add -Dw vendor-src
+# pnpm catalogs: if `pnpm add -Dw` errors with "Invalid Version", bump the
+# catalog entry in pnpm-workspace.yaml (e.g. vendor-src: ^0.3.2) then pnpm install
 ```
 
 ## Quick start (copy/paste for agents)
@@ -24,26 +26,33 @@ Set up vendor-src in this repo:
 
 1. Install vendor-src as a root devDependency:
    - pnpm workspace: pnpm add -Dw vendor-src
+   - pnpm catalog: if add fails with "Invalid Version", edit the catalog
+     entry in pnpm-workspace.yaml then run pnpm install
    - otherwise: pnpm add -D vendor-src
      (or: npm install -D vendor-src / yarn add -D vendor-src / bun add -d vendor-src)
 2. Ensure the git working tree is clean and has at least one commit.
-   Commit the install (package.json / lockfile) before continuing.
-3. If repos/<name> already exists from a manual subtree (and there is no
-   vendor-src.json entry), remove it first:
+   Commit the install (package.json / lockfile / catalog) before continuing.
+3. If AGENTS.md is a symlink (e.g. to README.md), either replace it with a
+   real AGENTS.md file or plan to paste the vendor-src block manually —
+   vendor-src will not write through the symlink.
+4. If repos/<name> already exists from a manual subtree (and there is no
+   vendor-src.json entry), claim it:
+   pnpm exec vendor-src adopt <package>
+   Or remove and re-add:
    git rm -rq repos/<name> && git commit -m "Remove repos/<name>"
-4. Run: pnpm exec vendor-src add <package>
+5. Otherwise run: pnpm exec vendor-src add <package>
    Example: pnpm exec vendor-src add effect
    (package must already be installed so the matching git tag can be resolved)
-5. Commit vendor-src.json, AGENTS.md (or the file it symlinks to), .ignore,
+6. Commit vendor-src.json, AGENTS.md (when it is a real file), .ignore,
    .oxfmtrc.json / editor ignores if changed, package.json (postinstall), and
    the subtree commit vendor-src created. Review diffs: do not let oxfmt /
    ignores get wiped.
-6. Never run formatters/linters on repos/**. vendor-src already writes .ignore,
+7. Never run formatters/linters on repos/**. vendor-src already writes .ignore,
    .oxfmtrc.json ignorePatterns, and editor excludes. If you add a new tool,
    exclude repos/** before the first run.
-7. Prefer reading repos/<name> as read-only reference. Do not import from
+8. Prefer reading repos/<name> as read-only reference. Do not import from
    repos/ — keep importing the normal npm package.
-8. After dependency upgrades, run: pnpm exec vendor-src check
+9. After dependency upgrades, run: pnpm exec vendor-src check
    If it warns, run: pnpm exec vendor-src sync
 ```
 
@@ -52,6 +61,9 @@ Set up vendor-src in this repo:
 ```shell
 # Vendor the source for an installed dependency at its matching git tag
 pnpm exec vendor-src add effect
+
+# Claim an existing repos/<name> checkout (manual subtree) without re-fetching
+pnpm exec vendor-src adopt effect
 
 # Offline check after installs (exit 0 with a warning on drift)
 pnpm exec vendor-src check
@@ -66,10 +78,10 @@ pnpm exec vendor-src list
 pnpm exec vendor-src remove effect
 ```
 
-`add` also:
+`add` / `adopt` also:
 
 - writes `vendor-src.json`
-- maintains a managed section in `AGENTS.md` (including “do not format/lint `repos/`”)
+- maintains a managed section in `AGENTS.md` when it is a regular file (skips symlinks)
 - writes/merges `.ignore` and `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `repos/`
 - if `.prettierignore` / `.eslintignore` already exist, merges `repos/` into them too (does not create those files)
 - merges editor excludes into `.vscode/settings.json`
