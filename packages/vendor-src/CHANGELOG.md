@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.6](https://github.com/KATT/vendor-src/compare/0.3.5...0.3.6) (2026-10-06)
+
+### Bug Fixes
+
+- warn when ignore patterns look like legacy regexes ([#12](https://github.com/KATT/vendor-src/issues/12)) ([15b000d](https://github.com/KATT/vendor-src/commit/15b000d9d325e22937ccaa8b5f99342b40aad04c))
+
 ## [0.3.5](https://github.com/KATT/vendor-src/compare/0.3.4...0.3.5) (2026-10-06)
 
 ### Bug Fixes
