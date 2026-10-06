@@ -149,8 +149,6 @@ Editors can validate via `$schema`. The schema is also available from the packag
 
 When multiple installed versions exist across a workspace, vendor-src pins the highest semver.
 
-## Development
+## License
 
-See [`.github/DEVELOPMENT.md`](.github/DEVELOPMENT.md).
-
-This repository is a Vite+ monorepo. The published package is [`packages/vendor-src`](packages/vendor-src) (no `postinstall`). The workspace root dogfoods it by vendoring `effect` under [`repos/effect`](repos/effect).
+MIT
