@@ -151,4 +151,4 @@ When multiple installed versions exist across a workspace, vendor-src pins the h
 
 See [`.github/DEVELOPMENT.md`](.github/DEVELOPMENT.md).
 
-This repository dogfoods itself by vendoring `effect` under [`repos/effect`](repos/effect).
+This repository is a Vite+ monorepo. The published package is [`packages/vendor-src`](packages/vendor-src) (no `postinstall`). The workspace root dogfoods it by vendoring `effect` under [`repos/effect`](repos/effect).
