@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.2](https://github.com/KATT/vendor-src/compare/0.4.1...0.4.2) (2026-10-06)
+
+### Bug Fixes
+
+- write AGENTS.md managed block through symlinks ([#17](https://github.com/KATT/vendor-src/issues/17)) ([bd32401](https://github.com/KATT/vendor-src/commit/bd32401f740506c832b775ed333270c5abd2db8b))
+
 ## [0.4.1](https://github.com/KATT/vendor-src/compare/0.4.0...0.4.1) (2026-10-06)
 
 ### Bug Fixes
