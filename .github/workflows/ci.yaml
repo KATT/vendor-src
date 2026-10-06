@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/prepare
-      - run: pnpm run test --coverage
+      - run: pnpm test --coverage
       - if: always()
         uses: codecov/codecov-action@v3
 

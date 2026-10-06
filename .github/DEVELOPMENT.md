@@ -10,7 +10,7 @@ pnpm install
 
 ## Building
 
-Run [**tsdown**](https://tsdown.dev) locally to build source files from `src/` into output files in `dist/`:
+Run [**Vite+ (`vp pack`)**](https://Vite+ (`vp pack`).dev) locally to build source files from `src/` into output files in `dist/`:
 
 ```shell
 pnpm build
@@ -24,7 +24,7 @@ pnpm build --watch
 
 ## Formatting
 
-[Oxfmt](https://oxc.rs/docs/guide/usage/formatter) is used to format code.
+[Vite+ fmt](https://viteplus.dev/) (Oxfmt) is used to format code.
 Auto-formatting should happen when you save files in your editor via [lint-staged](https://github.com/lint-staged/lint-staged) and [husky](https://typicode.github.io/husky).
 
 To manually reformat all files, you can run:
@@ -35,7 +35,7 @@ pnpm format
 
 ## Linting
 
-This package uses [Oxlint](https://oxc.rs/docs/guide/usage/linter) to enforce consistent code quality.
+This package uses [Vite+ lint](https://viteplus.dev/) (Oxlint) to enforce consistent code quality.
 
 ```shell
 pnpm lint
@@ -44,17 +44,17 @@ pnpm lint:fix
 
 ## Testing
 
-[Vitest](https://vitest.dev) is used for tests.
+[Vite+ test](https://viteplus.dev/) (Vitest) is used for tests.
 You can run it locally on the command-line:
 
 ```shell
-pnpm run test
+pnpm test
 ```
 
 Add the `--coverage` flag to compute test coverage and place reports in the `coverage/` directory:
 
 ```shell
-pnpm run test --coverage
+pnpm test --coverage
 ```
 
 Note that [console-fail-test](https://github.com/JoshuaKGoldberg/console-fail-test) is enabled for all test runs.
