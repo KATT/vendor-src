@@ -1,15 +1,17 @@
-import { Console, Effect } from "effect";
+import { Console, Effect, Option } from "effect";
 import { Command } from "effect/cli";
 
-import { resolveInstalledVersion } from "../installedVersions.ts";
-import { findProjectRoot, readManifest } from "../project.ts";
+import { InstalledPackages } from "../installedPackages.ts";
+import { Project } from "../project.ts";
+import { toUserError } from "./shared.ts";
 
 export const listCommand = Command.make(
 	"list",
 	{},
-	Effect.fn(function* () {
-		const projectRoot = yield* findProjectRoot;
-		const manifest = yield* readManifest(projectRoot);
+	Effect.fn("list")(function* () {
+		const project = yield* Project;
+		const packages = yield* InstalledPackages;
+		const manifest = yield* project.readManifest;
 		const entries = Object.entries(manifest.repos);
 		if (entries.length === 0) {
 			yield* Console.log("No vendored repositories.");
@@ -17,16 +19,14 @@ export const listCommand = Command.make(
 		}
 
 		for (const [name, repo] of entries) {
-			const installed = resolveInstalledVersion(repo.package, projectRoot);
-			const status =
-				installed === undefined
-					? "not installed"
-					: installed === repo.version
-						? "ok"
-						: `drift (installed ${installed})`;
+			const status = Option.match(yield* packages.version(repo.package), {
+				onNone: () => "not installed",
+				onSome: (installed) =>
+					installed === repo.version ? "ok" : `drift (installed ${installed})`,
+			});
 			yield* Console.log(
 				`${name}\t${repo.package}@${repo.version}\t${repo.ref}\t${status}`,
 			);
 		}
-	}),
+	}, Effect.mapError(toUserError)),
 ).pipe(Command.withDescription("List vendored repositories and drift status"));

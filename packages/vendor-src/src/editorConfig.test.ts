@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
+import { assert, describe, it } from "@effect/vitest";
+import { Effect } from "effect";
 
 import {
 	mergeIgnoreFile,
@@ -7,38 +8,53 @@ import {
 	mergeVsCodeSettings,
 } from "./editorConfig.ts";
 
-describe(mergeIgnoreFile, () => {
+describe("mergeIgnoreFile", () => {
 	it("appends the vendor dir once", () => {
-		expect(mergeIgnoreFile(undefined, "repos")).toBe("repos/\n");
-		expect(mergeIgnoreFile("dist/\n", "repos")).toBe("dist/\nrepos/\n");
-		expect(mergeIgnoreFile("repos/\n", "repos")).toBe("repos/\n");
+		assert.strictEqual(mergeIgnoreFile(undefined, "repos"), "repos/\n");
+		assert.strictEqual(mergeIgnoreFile("dist/\n", "repos"), "dist/\nrepos/\n");
+		assert.strictEqual(mergeIgnoreFile("repos/\n", "repos"), "repos/\n");
+		assert.strictEqual(mergeIgnoreFile("repos", "repos"), "repos\n");
 	});
 });
 
-describe(mergeToolingIgnoreFiles, () => {
+describe("mergeToolingIgnoreFiles", () => {
 	it("only updates existing Prettier/ESLint ignore files", () => {
-		expect(mergeToolingIgnoreFiles({}, "repos")).toEqual({});
-
-		const withLegacy = mergeToolingIgnoreFiles(
-			{ ".prettierignore": "coverage/\n", ".eslintignore": "" },
-			"repos",
+		assert.deepStrictEqual(mergeToolingIgnoreFiles({}, "repos"), {});
+		assert.deepStrictEqual(
+			mergeToolingIgnoreFiles(
+				{ ".prettierignore": "coverage/\n", ".eslintignore": "" },
+				"repos",
+			),
+			{ ".prettierignore": "coverage/\nrepos/\n", ".eslintignore": "repos/\n" },
 		);
-		expect(withLegacy[".prettierignore"]).toContain("repos/");
-		expect(withLegacy[".eslintignore"]).toBe("repos/\n");
 	});
 });
 
-describe(mergeOxfmtConfig, () => {
-	it("adds ignorePatterns without dropping other oxfmt settings", () => {
-		const merged = JSON.parse(
-			mergeOxfmtConfig('{\n\t"useTabs": true\n}\n', "repos"),
-		) as { useTabs: boolean; ignorePatterns: string[] };
-		expect(merged.useTabs).toBe(true);
-		expect(merged.ignorePatterns).toContain("repos/");
-	});
+describe("mergeOxfmtConfig", () => {
+	it.effect("creates a config when none exists", () =>
+		Effect.gen(function* () {
+			assert.deepStrictEqual(
+				JSON.parse(yield* mergeOxfmtConfig(undefined, "repos")),
+				{ ignorePatterns: ["repos/"] },
+			);
+		}),
+	);
 
-	it("preserves JSONC when repos is already ignored", () => {
-		const existing = `{
+	it.effect("adds ignorePatterns without dropping other oxfmt settings", () =>
+		Effect.gen(function* () {
+			const merged = JSON.parse(
+				yield* mergeOxfmtConfig('{\n\t"useTabs": true\n}\n', "repos"),
+			);
+			assert.deepStrictEqual(merged, {
+				useTabs: true,
+				ignorePatterns: ["repos/"],
+			});
+		}),
+	);
+
+	it.effect("preserves JSONC when repos is already ignored", () =>
+		Effect.gen(function* () {
+			const existing = `{
   // keep me
   "ignorePatterns": [
     "dist/**",
@@ -46,35 +62,70 @@ describe(mergeOxfmtConfig, () => {
   ]
 }
 `;
-		expect(mergeOxfmtConfig(existing, "repos")).toBe(existing);
-	});
+			assert.strictEqual(yield* mergeOxfmtConfig(existing, "repos"), existing);
+		}),
+	);
 
-	it("parses JSONC when a new ignore must be added", () => {
-		const existing = `{
+	it.effect("parses JSONC when a new ignore must be added", () =>
+		Effect.gen(function* () {
+			const existing = `{
   // keep schema
   "$schema": "./schema.json",
-  "ignorePatterns": ["dist/**"]
+  "ignorePatterns": ["dist/**"],
 }
 `;
-		const merged = JSON.parse(mergeOxfmtConfig(existing, "repos")) as {
-			$schema: string;
-			ignorePatterns: string[];
-		};
-		expect(merged.$schema).toBe("./schema.json");
-		expect(merged.ignorePatterns).toEqual(["dist/**", "repos/"]);
-	});
+			const merged = yield* mergeOxfmtConfig(existing, "repos");
+			assert.deepStrictEqual(JSON.parse(merged), {
+				$schema: "./schema.json",
+				ignorePatterns: ["dist/**", "repos/"],
+			});
+			assert.include(merged, '\n  "$schema"');
+		}),
+	);
+
+	it.effect("fails with ConfigFileError on invalid JSON", () =>
+		Effect.gen(function* () {
+			const error = yield* Effect.flip(mergeOxfmtConfig("{ nope", "repos"));
+			assert.strictEqual(error._tag, "ConfigFileError");
+			assert.strictEqual(error.file, ".oxfmtrc.json");
+			assert.include(error.message, ".oxfmtrc.json could not be parsed");
+		}),
+	);
 });
 
-describe(mergeVsCodeSettings, () => {
-	it("adds exclude patterns", () => {
-		const merged = JSON.parse(mergeVsCodeSettings(undefined, "repos")) as {
-			"files.exclude": Record<string, boolean>;
-		};
-		expect(merged["files.exclude"]["repos/**"]).toBe(true);
-	});
+describe("mergeVsCodeSettings", () => {
+	it.effect("adds exclude patterns", () =>
+		Effect.gen(function* () {
+			const merged = JSON.parse(yield* mergeVsCodeSettings(undefined, "repos"));
+			assert.deepStrictEqual(merged, {
+				"typescript.preferences.autoImportFileExcludePatterns": ["repos/**"],
+				"javascript.preferences.autoImportFileExcludePatterns": ["repos/**"],
+				"files.exclude": { "repos/**": true },
+				"files.watcherExclude": { "repos/**": true },
+				"search.exclude": { "repos/**": true },
+			});
+		}),
+	);
 
-	it("preserves existing settings when unchanged", () => {
-		const existing = `{
+	it.effect("keeps unrelated settings", () =>
+		Effect.gen(function* () {
+			const merged = JSON.parse(
+				yield* mergeVsCodeSettings(
+					'{ "editor.tabSize": 2, "files.exclude": { "dist": true } }',
+					"repos",
+				),
+			);
+			assert.strictEqual(merged["editor.tabSize"], 2);
+			assert.deepStrictEqual(merged["files.exclude"], {
+				dist: true,
+				"repos/**": true,
+			});
+		}),
+	);
+
+	it.effect("preserves existing settings when unchanged", () =>
+		Effect.gen(function* () {
+			const existing = `{
 	"files.exclude": {
 		"repos/**": true
 	},
@@ -88,6 +139,10 @@ describe(mergeVsCodeSettings, () => {
 	}
 }
 `;
-		expect(mergeVsCodeSettings(existing, "repos")).toBe(existing);
-	});
+			assert.strictEqual(
+				yield* mergeVsCodeSettings(existing, "repos"),
+				existing,
+			);
+		}),
+	);
 });

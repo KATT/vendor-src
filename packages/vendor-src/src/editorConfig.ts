@@ -1,67 +1,26 @@
+import { Effect, Predicate } from "effect";
+
+import { decodeJsonObject, stringifyJson } from "./json.ts";
+
+const trimSlash = (dir: string) => dir.replace(/\/+$/, "");
+
+const withTrailingNewline = (text: string) =>
+	text.endsWith("\n") ? text : `${text}\n`;
+
 export function mergeIgnoreFile(
 	existing: string | undefined,
 	dir: string,
 ): string {
-	const pattern = `${dir.replace(/\/$/, "")}/`;
+	const pattern = `${trimSlash(dir)}/`;
 	const lines = existing ? existing.split("\n") : [];
-	if (lines.some((line) => line.trim() === pattern || line.trim() === dir)) {
-		return existing?.endsWith("\n") ? existing : `${existing ?? pattern}\n`;
+	if (
+		existing &&
+		lines.some((line) => line.trim() === pattern || line.trim() === dir)
+	) {
+		return withTrailingNewline(existing);
 	}
 	const body = lines.join("\n").replace(/\s*$/, "");
 	return body.length > 0 ? `${body}\n${pattern}\n` : `${pattern}\n`;
-}
-
-export function mergeVsCodeSettings(
-	existingJson: string | undefined,
-	dir: string,
-): string {
-	const pattern = `${dir.replace(/\/$/, "")}/**`;
-	if (existingJson?.trim()) {
-		const settings = parseJsonObject(
-			existingJson,
-			".vscode/settings.json",
-		) as Record<string, unknown>;
-		const before = JSON.stringify(settings);
-		applyVsCodeExcludes(settings, pattern);
-		if (JSON.stringify(settings) === before) {
-			return existingJson.endsWith("\n") ? existingJson : `${existingJson}\n`;
-		}
-		return `${JSON.stringify(settings, null, detectIndent(existingJson))}\n`;
-	}
-
-	const settings: Record<string, unknown> = {};
-	applyVsCodeExcludes(settings, pattern);
-	return `${JSON.stringify(settings, null, "\t")}\n`;
-}
-
-function applyVsCodeExcludes(
-	settings: Record<string, unknown>,
-	pattern: string,
-): void {
-	const autoImportKey = "typescript.preferences.autoImportFileExcludePatterns";
-	const jsAutoImportKey =
-		"javascript.preferences.autoImportFileExcludePatterns";
-	settings[autoImportKey] = mergeStringArray(settings[autoImportKey], pattern);
-	settings[jsAutoImportKey] = mergeStringArray(
-		settings[jsAutoImportKey],
-		pattern,
-	);
-
-	settings["files.exclude"] = mergeRecord(
-		settings["files.exclude"] as Record<string, unknown> | undefined,
-		pattern,
-		true,
-	);
-	settings["files.watcherExclude"] = mergeRecord(
-		settings["files.watcherExclude"] as Record<string, unknown> | undefined,
-		pattern,
-		true,
-	);
-	settings["search.exclude"] = mergeRecord(
-		settings["search.exclude"] as Record<string, unknown> | undefined,
-		pattern,
-		true,
-	);
 }
 
 /**
@@ -73,24 +32,24 @@ export const OPTIONAL_IGNORE_FILES = [
 	".eslintignore",
 ] as const;
 
+export type OptionalIgnoreFile = (typeof OPTIONAL_IGNORE_FILES)[number];
+
 export const OXFMT_CONFIG_FILE = ".oxfmtrc.json";
 
-export type OptionalIgnoreFile = (typeof OPTIONAL_IGNORE_FILES)[number];
-export type ToolingIgnoreFile = OptionalIgnoreFile;
+export const VSCODE_SETTINGS_FILE = ".vscode/settings.json";
 
 /**
  * Merge `repos/` into Prettier/ESLint ignore files only when those files
  * already exist. Oxfmt uses `.oxfmtrc.json` `ignorePatterns` instead.
  */
 export function mergeToolingIgnoreFiles(
-	existing: Partial<Record<ToolingIgnoreFile, string | undefined>>,
+	existing: Partial<Record<OptionalIgnoreFile, string>>,
 	dir: string,
-): Partial<Record<ToolingIgnoreFile, string>> {
-	const pattern = `${dir.replace(/\/$/, "")}/`;
-	const result: Partial<Record<ToolingIgnoreFile, string>> = {};
+): Partial<Record<OptionalIgnoreFile, string>> {
+	const result: Partial<Record<OptionalIgnoreFile, string>> = {};
 	for (const file of OPTIONAL_IGNORE_FILES) {
 		if (existing[file] !== undefined) {
-			result[file] = mergeIgnoreFile(existing[file], pattern);
+			result[file] = mergeIgnoreFile(existing[file], dir);
 		}
 	}
 	return result;
@@ -102,117 +61,77 @@ export function mergeToolingIgnoreFiles(
  * If the vendor dir is already covered (e.g. `repos/**`), the existing file is
  * returned unchanged so JSONC comments and formatting are preserved.
  */
-export function mergeOxfmtConfig(
-	existingJson: string | undefined,
+export const mergeOxfmtConfig = Effect.fnUntraced(function* (
+	existing: string | undefined,
 	dir: string,
-): string {
-	const pattern = `${dir.replace(/\/$/, "")}/`;
-	if (!existingJson?.trim()) {
-		return `${JSON.stringify({ ignorePatterns: [pattern] }, null, "\t")}\n`;
+) {
+	const pattern = `${trimSlash(dir)}/`;
+	if (!existing?.trim()) {
+		return stringifyJson({ ignorePatterns: [pattern] });
 	}
-
-	const config = parseJsonObject(existingJson, OXFMT_CONFIG_FILE) as Record<
-		string,
-		unknown
-	>;
-	const before = Array.isArray(config.ignorePatterns)
-		? [...(config.ignorePatterns as unknown[])]
-		: undefined;
-	const merged = mergeStringArray(config.ignorePatterns, pattern);
-	if (
-		before &&
-		before.length === merged.length &&
-		before.every((entry, index) => entry === merged[index])
-	) {
-		return existingJson.endsWith("\n") ? existingJson : `${existingJson}\n`;
+	const config = yield* decodeJsonObject(OXFMT_CONFIG_FILE, existing);
+	const current = stringEntries(config.ignorePatterns);
+	if (coversDir(current, pattern)) {
+		return withTrailingNewline(existing);
 	}
+	return stringifyJson(
+		{ ...config, ignorePatterns: [...current, pattern] },
+		existing,
+	);
+});
 
-	config.ignorePatterns = merged;
-	return `${JSON.stringify(config, null, detectIndent(existingJson))}\n`;
-}
-
-/** Parse JSON or JSONC (comments / trailing commas stripped). Fail loudly. */
-export function parseJsonObject(text: string, label: string): unknown {
-	try {
-		return JSON.parse(stripJsonc(text));
-	} catch (cause) {
-		throw new Error(
-			`${label} is not valid JSON/JSONC; fix it before running vendor-src (${String(cause)})`,
-		);
+/** Exclude the vendor dir from VS Code search, file watching, and auto-imports. */
+export const mergeVsCodeSettings = Effect.fnUntraced(function* (
+	existing: string | undefined,
+	dir: string,
+) {
+	const pattern = `${trimSlash(dir)}/**`;
+	const settings = existing?.trim()
+		? yield* decodeJsonObject(VSCODE_SETTINGS_FILE, existing)
+		: {};
+	const merged = applyVsCodeExcludes(settings, pattern);
+	if (existing?.trim() && JSON.stringify(merged) === JSON.stringify(settings)) {
+		return withTrailingNewline(existing);
 	}
-}
+	return stringifyJson(merged, existing);
+});
 
-/** Strip `//` and block comments outside of strings; drop trailing commas. */
-export function stripJsonc(text: string): string {
-	let result = "";
-	let i = 0;
-	let inString = false;
-	let escape = false;
-	while (i < text.length) {
-		const char = text[i]!;
-		if (inString) {
-			result += char;
-			if (escape) {
-				escape = false;
-			} else if (char === "\\") {
-				escape = true;
-			} else if (char === '"') {
-				inString = false;
-			}
-			i += 1;
-			continue;
-		}
-		if (char === '"') {
-			inString = true;
-			result += char;
-			i += 1;
-			continue;
-		}
-		if (char === "/" && text[i + 1] === "/") {
-			i += 2;
-			while (i < text.length && text[i] !== "\n") {
-				i += 1;
-			}
-			continue;
-		}
-		if (char === "/" && text[i + 1] === "*") {
-			i += 2;
-			while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) {
-				i += 1;
-			}
-			i += 2;
-			continue;
-		}
-		result += char;
-		i += 1;
-	}
-	return result.replace(/,\s*([}\]])/g, "$1");
-}
+const AUTO_IMPORT_EXCLUDE_KEYS = [
+	"typescript.preferences.autoImportFileExcludePatterns",
+	"javascript.preferences.autoImportFileExcludePatterns",
+] as const;
 
-export function detectIndent(text: string): string {
-	const match = text.match(/\n([ \t]+)"/);
-	return match?.[1] ?? "\t";
-}
+const EXCLUDE_RECORD_KEYS = [
+	"files.exclude",
+	"files.watcherExclude",
+	"search.exclude",
+] as const;
 
-function mergeStringArray(value: unknown, item: string): string[] {
-	const current = Array.isArray(value)
-		? value.filter((entry): entry is string => typeof entry === "string")
-		: [];
-	if (
-		!current.includes(item) &&
-		!current.includes(item.replace(/\/$/, "")) &&
-		!current.includes(`${item}**`) &&
-		!current.includes(`${item}/**`)
-	) {
-		current.push(item);
-	}
-	return current;
-}
-
-function mergeRecord(
-	value: Record<string, unknown> | undefined,
-	key: string,
-	flag: boolean,
+function applyVsCodeExcludes(
+	settings: Readonly<Record<string, unknown>>,
+	pattern: string,
 ): Record<string, unknown> {
-	return { ...value, [key]: flag };
+	const merged: Record<string, unknown> = { ...settings };
+	for (const key of AUTO_IMPORT_EXCLUDE_KEYS) {
+		const current = stringEntries(settings[key]);
+		merged[key] = coversDir(current, pattern) ? current : [...current, pattern];
+	}
+	for (const key of EXCLUDE_RECORD_KEYS) {
+		const current = settings[key];
+		merged[key] = {
+			...(Predicate.isObject(current) ? current : {}),
+			[pattern]: true,
+		};
+	}
+	return merged;
+}
+
+function stringEntries(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter(Predicate.isString) : [];
+}
+
+/** True when one of `entries` already excludes the directory behind `pattern`. */
+function coversDir(entries: readonly string[], pattern: string): boolean {
+	const dir = pattern.replace(/\/\*\*$/, "").replace(/\/$/, "");
+	return entries.some((entry) => [dir, `${dir}/`, `${dir}/**`].includes(entry));
 }
