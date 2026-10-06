@@ -43,12 +43,13 @@ Set up vendor-src in this repo:
 5. Otherwise run: pnpm exec vendor-src add <package>
    Example: pnpm exec vendor-src add effect
    (package must already be installed so the matching git tag can be resolved)
-6. Commit vendor-src.json, AGENTS.md (when it is a real file), .oxfmtrc.json /
-   editor ignores if changed, package.json (postinstall), and the subtree
-   commit vendor-src created. Review diffs: do not let oxfmt / ignores get wiped.
-7. Never run formatters/linters on repos/**. vendor-src already writes
-   .oxfmtrc.json ignorePatterns and editor excludes. If you add a new tool,
-   exclude repos/** before the first run.
+6. Commit vendor-src.json, AGENTS.md (when it is a real file), {dir}/AGENTS.md,
+   .oxfmtrc.json / editor ignores if changed, package.json (postinstall), and
+   the subtree commit vendor-src created. Review diffs: do not let oxfmt /
+   ignores get wiped.
+7. Never run formatters/linters on the vendor dir (default repos/**). vendor-src
+   already writes .oxfmtrc.json ignorePatterns and editor excludes for that dir.
+   If you add a new tool, exclude it before the first run.
 8. Prefer reading repos/<name> as read-only reference. Do not import from
    repos/ — keep importing the normal npm package.
 9. After dependency upgrades, run: pnpm exec vendor-src check
@@ -79,18 +80,19 @@ pnpm exec vendor-src remove effect
 
 `add` / `adopt` also:
 
-- writes `vendor-src.json`
-- maintains a managed section in `AGENTS.md` when it is a regular file (skips symlinks)
-- writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `repos/`
-- if `.prettierignore` / `.eslintignore` already exist, merges `repos/` into them too (does not create those files)
+- writes `vendor-src.json` (`dir` defaults to `repos` — set another folder if you prefer)
+- maintains a short managed section in root `AGENTS.md` when it is a regular file (skips symlinks)
+- writes `{dir}/AGENTS.md` with fuller guidance for agents working inside that tree
+- writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `{dir}/`
+- if `.prettierignore` / `.eslintignore` already exist, merges `{dir}/` into them too (does not create those files)
 - merges editor excludes into `.vscode/settings.json`
 - adds a `postinstall` script that runs `vendor-src check`
 
-## Protecting `repos/` from tooling
+## Protecting the vendor directory from tooling
 
 Vendored trees are large upstream checkouts. A single repo-wide formatter run without excludes can rewrite thousands of files.
 
-`vendor-src add` writes the ignores for you. If you are wiring tooling manually, copy/paste:
+`vendor-src add` writes the ignores for you (using the configured `dir`). If you are wiring tooling manually, copy/paste (replace `repos` if you changed `dir`):
 
 ```json
 // .oxfmtrc.json
@@ -152,6 +154,8 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 ```
 
 ## Manifest
+
+`dir` is the folder for checkouts (default `repos`). AGENTS.md text, oxfmt ignores, and editor excludes all follow this value.
 
 ```json
 {

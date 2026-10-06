@@ -156,7 +156,7 @@ export const addCommand = Command.make(
 		yield* ensurePostinstall(projectRoot);
 
 		yield* Console.log(
-			`Added ${prefix}. Commit ${"vendor-src.json"}, AGENTS.md, and editor ignores.`,
+			`Added ${prefix}. Commit vendor-src.json, AGENTS.md, ${manifest.dir}/AGENTS.md, and editor ignores.`,
 		);
 	}),
 ).pipe(
