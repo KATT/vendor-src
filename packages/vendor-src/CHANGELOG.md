@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1](https://github.com/KATT/vendor-src/compare/0.4.0...0.4.1) (2026-10-06)
+
+### Bug Fixes
+
+- refresh AGENTS on sync; blog-style package inventory ([#15](https://github.com/KATT/vendor-src/issues/15)) ([a2adda6](https://github.com/KATT/vendor-src/commit/a2adda6d8d7ef99e02ae9a514d648528dbf29682))
+
 ## [0.4.0](https://github.com/KATT/vendor-src/compare/0.3.7...0.4.0) (2026-10-06)
 
 ### Features
