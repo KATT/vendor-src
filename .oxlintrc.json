@@ -12,7 +12,7 @@
 		"**/dist",
 		"node_modules",
 		"**/node_modules",
-		"repos",
+		".repos",
 		"pnpm-lock.yaml"
 	],
 	"env": {
