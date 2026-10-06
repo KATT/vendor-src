@@ -13,7 +13,7 @@ export const VendoredRepo = Schema.Struct({
 	url: Schema.NonEmptyString,
 	version: Schema.NonEmptyString,
 	ref: Schema.NonEmptyString,
-	/** Path globs to prune from this vendored repo after subtree add/pull/sync. */
+	/** Path globs to prune from this vendored repo after add and sync. */
 	ignore: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 export type VendoredRepo = typeof VendoredRepo.Type;

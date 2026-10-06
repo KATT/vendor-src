@@ -65,7 +65,11 @@ export class Git extends Context.Service<
 			url: string,
 			ref: string,
 		) => Effect.Effect<void, GitError>;
-		readonly subtreePull: (
+		/**
+		 * Replace `prefix` with the tree at `ref` from `url` in a new commit.
+		 * Local edits under `prefix` are discarded.
+		 */
+		readonly replaceSubtree: (
 			prefix: string,
 			url: string,
 			ref: string,
@@ -172,18 +176,21 @@ export class Git extends Context.Service<
 				]);
 			});
 
-			const subtreePull = Effect.fn("Git.subtreePull")(function* (
+			// `git subtree pull` needs the add's squash commit reachable under the
+			// same prefix, which squash-merged PRs and moved `dir`s both break.
+			const replaceSubtree = Effect.fn("Git.replaceSubtree")(function* (
 				prefix: string,
 				url: string,
 				ref: string,
 			) {
+				yield* interactive(["fetch", "--no-tags", url, toFetchRef(ref)]);
+				const commit = yield* capture(["rev-parse", "FETCH_HEAD^{commit}"]);
+				yield* capture(["rm", "-rq", "--ignore-unmatch", "--", prefix]);
+				yield* capture(["read-tree", `--prefix=${prefix}/`, "-u", commit]);
 				yield* interactive([
-					"subtree",
-					"pull",
-					`--prefix=${prefix}`,
-					url,
-					toFetchRef(ref),
-					"--squash",
+					"commit",
+					"-m",
+					`chore(vendor): update ${prefix} to ${ref}`,
 				]);
 			});
 
@@ -201,7 +208,7 @@ export class Git extends Context.Service<
 				ensureReady,
 				resolveTag,
 				subtreeAdd,
-				subtreePull,
+				replaceSubtree,
 				commitAll,
 			});
 		}),

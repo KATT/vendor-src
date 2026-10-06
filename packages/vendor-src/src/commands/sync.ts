@@ -57,7 +57,7 @@ export const syncCommand = Command.make(
 				yield* Console.log(
 					`Syncing ${name}: ${entry.version} -> ${installed.value} (${ref})`,
 				);
-				yield* git.subtreePull(repoPrefix(manifest, name), entry.url, ref);
+				yield* git.replaceSubtree(repoPrefix(manifest, name), entry.url, ref);
 				manifest = setRepo(manifest, name, {
 					...entry,
 					version: installed.value,

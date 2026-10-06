@@ -14,6 +14,7 @@ import {
 	makeUpstream,
 	readFile,
 	tempDir,
+	writeFiles,
 } from "./testUtils.ts";
 
 isolateGitConfig();
@@ -119,6 +120,76 @@ describe("vendor-src CLI", () => {
 			);
 			assert.deepStrictEqual(removed.repos, {});
 		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live(
+		"syncs after the add commit was squash-merged and dir was moved",
+		() =>
+			Effect.gen(function* () {
+				const path = yield* Path.Path;
+				const root = yield* tempDir;
+				const upstream = yield* makeUpstream(root, "lib", [
+					{
+						version: "1.0.0",
+						files: {
+							"src/index.ts": "export const version = 1\n",
+							"src/old.ts": "export const old = true\n",
+							"docs/guide.md": "# Guide\n",
+						},
+					},
+					{
+						version: "1.1.0",
+						files: { "src/index.ts": "export const version = 2\n" },
+					},
+				]);
+				const work = path.join(root, "lib-work");
+				git(work, "rm", "-q", "src/old.ts");
+				git(work, "commit", "-qm", "drop old.ts");
+				git(work, "tag", "-f", "lib@1.1.0");
+				git(upstream, "fetch", "-q", "-f", work, "refs/tags/*:refs/tags/*");
+
+				const project = yield* makeProject(path.join(root, "project"));
+				yield* installPackage(project, "lib", "1.0.0", upstream);
+				yield* vendorSrc(project, "add", "lib", "--ignore", "docs/**");
+				git(project, "add", "-A");
+				git(project, "commit", "-qm", "vendor lib");
+
+				const squashed = git(
+					project,
+					"commit-tree",
+					"HEAD^{tree}",
+					"-m",
+					"squash merge",
+				);
+				git(project, "reset", "-q", "--hard", squashed);
+
+				git(project, "mv", ".repos", "vendor");
+				const manifest = yield* readFile(project, "vendor-src.json");
+				yield* writeFiles(project, {
+					"vendor-src.json": manifest.replace(
+						'"dir": ".repos"',
+						'"dir": "vendor"',
+					),
+				});
+				git(project, "add", "-A");
+				git(project, "commit", "-qm", "move vendor dir");
+
+				yield* installPackage(project, "lib", "1.1.0", upstream);
+				yield* vendorSrc(project, "sync");
+
+				assert.strictEqual(
+					yield* readFile(project, "vendor", "lib", "src", "index.ts"),
+					"export const version = 2\n",
+				);
+				assert.isFalse(
+					yield* exists(project, "vendor", "lib", "src", "old.ts"),
+				);
+				assert.isFalse(yield* exists(project, "vendor", "lib", "docs"));
+				const synced = yield* decodeManifest(
+					yield* readFile(project, "vendor-src.json"),
+				);
+				assert.strictEqual(synced.repos.lib?.version, "1.1.0");
+			}).pipe(Effect.provide(TestLayer)),
 	);
 
 	it.live("renders user errors without a stack trace", () =>
