@@ -2,9 +2,13 @@ import { Effect, FileSystem, Path } from "effect";
 
 import { upsertAgentsBlock, type AgentsRepoLine } from "./agentsMd.ts";
 import {
+	ALWAYS_IGNORE_FILES,
+	mergeOxfmtConfig,
 	mergeToolingIgnoreFiles,
 	mergeVsCodeSettings,
-	TOOLING_IGNORE_FILES,
+	OPTIONAL_IGNORE_FILES,
+	OXFMT_CONFIG_FILE,
+	type ToolingIgnoreFile,
 } from "./editorConfig.ts";
 import {
 	emptyManifest,
@@ -88,19 +92,26 @@ export const updateEditorIgnores = (projectRoot: string, dir: string) =>
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 
-		const existing: Partial<
-			Record<(typeof TOOLING_IGNORE_FILES)[number], string>
-		> = {};
-		for (const file of TOOLING_IGNORE_FILES) {
+		const existing: Partial<Record<ToolingIgnoreFile, string>> = {};
+		for (const file of [...ALWAYS_IGNORE_FILES, ...OPTIONAL_IGNORE_FILES]) {
 			const fullPath = path.join(projectRoot, file);
 			if (yield* fs.exists(fullPath)) {
 				existing[file] = yield* fs.readFileString(fullPath);
 			}
 		}
 		const merged = mergeToolingIgnoreFiles(existing, dir);
-		for (const file of TOOLING_IGNORE_FILES) {
-			yield* fs.writeFileString(path.join(projectRoot, file), merged[file]);
+		for (const [file, contents] of Object.entries(merged)) {
+			if (contents !== undefined) {
+				yield* fs.writeFileString(path.join(projectRoot, file), contents);
+			}
 		}
+
+		const oxfmtPath = path.join(projectRoot, OXFMT_CONFIG_FILE);
+		const oxfmtExists = yield* fs.exists(oxfmtPath);
+		const oxfmtExisting = oxfmtExists
+			? yield* fs.readFileString(oxfmtPath)
+			: undefined;
+		yield* fs.writeFileString(oxfmtPath, mergeOxfmtConfig(oxfmtExisting, dir));
 
 		const vscodeDir = path.join(projectRoot, ".vscode");
 		yield* fs.makeDirectory(vscodeDir, { recursive: true });
