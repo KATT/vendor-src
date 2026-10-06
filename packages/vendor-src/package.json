@@ -1,0 +1,57 @@
+{
+	"name": "vendor-src",
+	"version": "0.2.0",
+	"description": "Vendor dependency source into your repo with git subtree, pinned to the installed version, for coding agents.",
+	"keywords": [
+		"agents",
+		"coding-agents",
+		"git-subtree",
+		"vendor"
+	],
+	"license": "MIT",
+	"author": {
+		"name": "KATT",
+		"email": "alexander@n1s.se"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/KATT/vendor-src.git",
+		"directory": "packages/vendor-src"
+	},
+	"homepage": "https://github.com/KATT/vendor-src#readme",
+	"bugs": {
+		"url": "https://github.com/KATT/vendor-src/issues"
+	},
+	"bin": {
+		"vendor-src": "./bin/vendor-src.js"
+	},
+	"files": [
+		"bin/",
+		"dist/",
+		"schema/"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": "./dist/index.mjs",
+		"./schema.json": "./schema/vendor-src.schema.json"
+	},
+	"scripts": {
+		"build": "vp pack",
+		"test": "vp test",
+		"typecheck": "tsc"
+	},
+	"dependencies": {
+		"@effect/platform-node": "4.0.1",
+		"effect": "4.0.1"
+	},
+	"devDependencies": {
+		"@types/node": "26.6.4",
+		"@vitest/coverage-v8": "5.0.1",
+		"typescript": "7.0.2",
+		"vite-plus": "1.0.0"
+	},
+	"engines": {
+		"node": ">=24"
+	}
+}

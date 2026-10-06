@@ -1,48 +1,19 @@
 {
-	"name": "vendor-src",
-	"version": "0.2.0",
-	"description": "Vendor dependency source into your repo with git subtree, pinned to the installed version, for coding agents.",
-	"keywords": [
-		"agents",
-		"coding-agents",
-		"git-subtree",
-		"vendor"
-	],
-	"license": "MIT",
-	"author": {
-		"name": "KATT",
-		"email": "alexander@n1s.se"
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/KATT/vendor-src.git"
-	},
-	"bin": {
-		"vendor-src": "./dist/bin.mjs"
-	},
-	"files": [
-		"dist/"
-	],
+	"name": "vendor-src-workspace",
+	"private": true,
+	"description": "Workspace root for vendor-src",
 	"type": "module",
-	"sideEffects": false,
-	"exports": {
-		".": "./dist/index.mjs"
-	},
 	"scripts": {
-		"build": "vp pack",
+		"build": "vp -C packages/vendor-src pack",
 		"format": "vp fmt",
 		"format:check": "vp fmt --check",
-		"lint": "vp lint --disable-nested-config --ignore-pattern=repos/**",
-		"lint:fix": "vp lint --fix --disable-nested-config --ignore-pattern=repos/**",
+		"lint": "vp lint --disable-nested-config --ignore-pattern=repos/** --ignore-pattern=**/node_modules/**",
+		"lint:fix": "vp lint --fix --disable-nested-config --ignore-pattern=repos/** --ignore-pattern=**/node_modules/**",
 		"prepare": "husky",
-		"test": "vp test",
-		"typecheck": "tsc",
+		"test": "vp -C packages/vendor-src test",
+		"typecheck": "pnpm --filter vendor-src typecheck",
 		"check": "vp check",
-		"postinstall": "node ./scripts/postinstall-check.mjs"
-	},
-	"dependencies": {
-		"@effect/platform-node": "4.0.1",
-		"effect": "4.0.1"
+		"postinstall": "node ./scripts/workspace-check.mjs"
 	},
 	"devDependencies": {
 		"@release-it/conventional-changelog": "12.0.2",
@@ -53,6 +24,7 @@
 		"oxfmt": "0.70.0",
 		"release-it": "21.1.0",
 		"typescript": "7.0.2",
+		"vendor-src": "workspace:*",
 		"vite-plus": "1.0.0"
 	},
 	"lint-staged": {

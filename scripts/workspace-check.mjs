@@ -1,13 +1,17 @@
+#!/usr/bin/env node
+/**
+ * Workspace dogfood: run `vendor-src check` after install when the package is built.
+ * The published package intentionally has no postinstall.
+ */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const localBin = join(root, "dist", "bin.mjs");
+const localBin = join(root, "packages", "vendor-src", "dist", "bin.mjs");
 
 if (!existsSync(localBin)) {
-	// Fresh clone before the first build — never break install.
 	process.exit(0);
 }
 

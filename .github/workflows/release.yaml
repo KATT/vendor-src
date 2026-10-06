@@ -14,10 +14,18 @@ jobs:
           ref: main
           token: ${{ secrets.ACCESS_TOKEN }}
       - uses: ./.github/actions/prepare
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest
       - run: pnpm build
-      - env:
+      - name: Release
+        working-directory: packages/vendor-src
+        env:
           GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-        uses: JoshuaKGoldberg/release-it-action@v0.5.7
+          # release-it-action recovery: publish tagged-but-unpublished versions via OIDC
+        run: pnpm exec release-it --ci --verbose
 
 name: Release
 

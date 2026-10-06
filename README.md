@@ -108,19 +108,19 @@ By default, after each subtree add/pull, vendor-src also **deletes** matching pa
 - `node_modules/`
 - `.git/`
 
-Add more regexes globally or per repo in `vendor-src.json`, or pass `--ignore` to `add`:
+Add more regexes **per vendored repo** in `vendor-src.json`, or pass `--ignore` to `add`:
 
 ```json
 {
+	"$schema": "https://unpkg.com/vendor-src/schema.json",
 	"dir": "repos",
-	"ignore": ["(^|/)docs(/|$)"],
 	"repos": {
 		"effect": {
 			"package": "effect",
 			"url": "https://github.com/Effect-TS/effect.git",
 			"version": "4.0.1",
 			"ref": "effect@4.0.1",
-			"ignore": ["(^|/)scratchpad(/|$)"]
+			"ignore": ["(^|/)docs(/|$)", "(^|/)scratchpad(/|$)"]
 		}
 	}
 }
@@ -130,6 +130,7 @@ Add more regexes globally or per repo in `vendor-src.json`, or pass `--ignore` t
 
 ```json
 {
+	"$schema": "https://unpkg.com/vendor-src/schema.json",
 	"dir": "repos",
 	"repos": {
 		"effect": {
@@ -142,10 +143,12 @@ Add more regexes globally or per repo in `vendor-src.json`, or pass `--ignore` t
 }
 ```
 
+Editors can validate via `$schema`. The schema is also available from the package as `vendor-src/schema.json`.
+
 When multiple installed versions exist across a workspace, vendor-src pins the highest semver.
 
 ## Development
 
 See [`.github/DEVELOPMENT.md`](.github/DEVELOPMENT.md).
 
-This repository dogfoods itself by vendoring `effect` under [`repos/effect`](repos/effect).
+This repository is a Vite+ monorepo. The published package is [`packages/vendor-src`](packages/vendor-src) (no `postinstall`). The workspace root dogfoods it by vendoring `effect` under [`repos/effect`](repos/effect).

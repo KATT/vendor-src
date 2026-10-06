@@ -137,16 +137,14 @@ export const ensurePostinstall = (projectRoot: string) =>
 			scripts?: Record<string, string>;
 			[key: string]: unknown;
 		};
+		// Never write postinstall into the published package itself.
+		if (pkg.name === "vendor-src") {
+			return;
+		}
 		const scripts = { ...pkg.scripts };
 		const current = scripts.postinstall;
-		const selfCheck = "node ./scripts/postinstall-check.mjs";
-		const dependencyCheck = "vendor-src check";
-		const desired = pkg.name === "vendor-src" ? selfCheck : dependencyCheck;
-		if (
-			current === desired ||
-			current?.includes("vendor-src check") ||
-			current?.includes("postinstall-check.mjs")
-		) {
+		const desired = "vendor-src check";
+		if (current === desired || current?.includes("vendor-src check")) {
 			return;
 		}
 		scripts.postinstall = current ? `${current} && ${desired}` : desired;

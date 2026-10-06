@@ -7,8 +7,11 @@
 	},
 	"ignorePatterns": [
 		"coverage",
+		"**/coverage",
 		"dist",
+		"**/dist",
 		"node_modules",
+		"**/node_modules",
 		"repos",
 		"pnpm-lock.yaml"
 	],

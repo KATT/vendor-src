@@ -18,7 +18,6 @@ export const pruneIgnoredPaths = (options: {
 			options.vendorName,
 		);
 		const patterns = resolveIgnorePatterns({
-			manifestIgnore: options.manifest.ignore,
 			repoIgnore: options.manifest.repos[options.vendorName]?.ignore,
 			cliIgnore: options.cliIgnore,
 		});

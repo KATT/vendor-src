@@ -1,0 +1,66 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://unpkg.com/vendor-src/schema.json",
+	"title": "vendor-src manifest",
+	"description": "Configuration for vendor-src: vendored dependency sources under a directory such as repos/.",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["repos"],
+	"properties": {
+		"$schema": {
+			"type": "string",
+			"description": "JSON Schema URL for editor validation."
+		},
+		"dir": {
+			"type": "string",
+			"description": "Directory that holds vendored repositories.",
+			"default": "repos",
+			"minLength": 1
+		},
+		"repos": {
+			"type": "object",
+			"description": "Vendored repositories keyed by directory name under dir.",
+			"additionalProperties": {
+				"$ref": "#/$defs/vendoredRepo"
+			}
+		}
+	},
+	"$defs": {
+		"vendoredRepo": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["package", "url", "version", "ref"],
+			"properties": {
+				"package": {
+					"type": "string",
+					"description": "npm package name this checkout corresponds to.",
+					"minLength": 1
+				},
+				"url": {
+					"type": "string",
+					"description": "Git remote URL used for subtree add/pull.",
+					"minLength": 1
+				},
+				"version": {
+					"type": "string",
+					"description": "Installed package version this checkout is pinned to.",
+					"minLength": 1
+				},
+				"ref": {
+					"type": "string",
+					"description": "Git ref/tag that was vendored (often package@version).",
+					"minLength": 1
+				},
+				"ignore": {
+					"type": "array",
+					"description": "Extra regexes matched against paths relative to this vendored repo root. Defaults always prune .DS_Store, nested repos/, node_modules/, and .git/.",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					},
+					"uniqueItems": true
+				}
+			}
+		}
+	}
+}

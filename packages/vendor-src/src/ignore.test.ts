@@ -30,9 +30,9 @@ describe(matchesIgnore, () => {
 });
 
 describe(resolveIgnorePatterns, () => {
-	it("merges defaults with overrides", () => {
+	it("merges defaults with per-repo and CLI overrides", () => {
 		const patterns = resolveIgnorePatterns({
-			manifestIgnore: ["(^|/)docs(/|$)"],
+			repoIgnore: ["(^|/)docs(/|$)"],
 			cliIgnore: ["(^|/)scratchpad(/|$)"],
 		});
 		expect(patterns).toContain("(^|/)repos(/|$)");
