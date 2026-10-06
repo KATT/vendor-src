@@ -1,8 +1,11 @@
-import { Effect, FileSystem, Path } from "effect";
+import { lstatSync, readlinkSync } from "node:fs";
+
+import { Console, Effect, FileSystem, Path } from "effect";
 
 import { upsertAgentsBlock, type AgentsRepoLine } from "./agentsMd.ts";
 import {
 	ALWAYS_IGNORE_FILES,
+	detectIndent,
 	mergeOxfmtConfig,
 	mergeToolingIgnoreFiles,
 	mergeVsCodeSettings,
@@ -81,6 +84,17 @@ export const updateAgentsMd = (
 				path: `${manifest.dir}/${name}`,
 			}),
 		);
+		if (exists) {
+			try {
+				if (lstatSync(file).isSymbolicLink()) {
+					yield* Console.log(
+						`Note: AGENTS.md is a symlink to ${readlinkSync(file)}; writing the vendor-src block through that link.`,
+					);
+				}
+			} catch {
+				// ignore race where the file disappears
+			}
+		}
 		yield* fs.writeFileString(
 			file,
 			upsertAgentsBlock(existing, repos, manifest.dir),
@@ -149,5 +163,6 @@ export const ensurePostinstall = (projectRoot: string) =>
 		}
 		scripts.postinstall = current ? `${current} && ${desired}` : desired;
 		pkg.scripts = scripts;
-		yield* fs.writeFileString(file, `${JSON.stringify(pkg, null, "\t")}\n`);
+		const indent = detectIndent(raw);
+		yield* fs.writeFileString(file, `${JSON.stringify(pkg, null, indent)}\n`);
 	});

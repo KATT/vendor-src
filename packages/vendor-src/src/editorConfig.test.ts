@@ -40,6 +40,33 @@ describe(mergeOxfmtConfig, () => {
 		expect(merged.useTabs).toBe(true);
 		expect(merged.ignorePatterns).toContain("repos/");
 	});
+
+	it("preserves JSONC when repos is already ignored", () => {
+		const existing = `{
+  // keep me
+  "ignorePatterns": [
+    "dist/**",
+    "repos/**"
+  ]
+}
+`;
+		expect(mergeOxfmtConfig(existing, "repos")).toBe(existing);
+	});
+
+	it("parses JSONC when a new ignore must be added", () => {
+		const existing = `{
+  // keep schema
+  "$schema": "./schema.json",
+  "ignorePatterns": ["dist/**"]
+}
+`;
+		const merged = JSON.parse(mergeOxfmtConfig(existing, "repos")) as {
+			$schema: string;
+			ignorePatterns: string[];
+		};
+		expect(merged.$schema).toBe("./schema.json");
+		expect(merged.ignorePatterns).toEqual(["dist/**", "repos/"]);
+	});
 });
 
 describe(mergeVsCodeSettings, () => {
