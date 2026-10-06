@@ -5,7 +5,10 @@
 		"requireCommits": true
 	},
 	"github": { "release": true, "releaseName": "v${version}" },
-	"hooks": { "after:git:release": "npm publish" },
+	"hooks": {
+		"before:npm": "node ../../scripts/sync-package-docs.mjs",
+		"after:git:release": "npm publish"
+	},
 	"npm": { "publish": false, "skipChecks": true },
 	"plugins": {
 		"@release-it/conventional-changelog": {

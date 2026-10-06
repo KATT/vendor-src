@@ -28,7 +28,9 @@
 	"files": [
 		"bin/",
 		"dist/",
-		"schema/"
+		"schema/",
+		"LICENSE.md",
+		"README.md"
 	],
 	"type": "module",
 	"sideEffects": false,
@@ -37,6 +39,7 @@
 		"./schema.json": "./schema/vendor-src.schema.json"
 	},
 	"scripts": {
+		"prepack": "node ../../scripts/sync-package-docs.mjs",
 		"build": "vp pack",
 		"test": "vp test",
 		"typecheck": "tsc"
