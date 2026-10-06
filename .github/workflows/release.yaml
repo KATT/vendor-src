@@ -3,6 +3,9 @@ concurrency:
 
 jobs:
   release:
+    # release-it pushes "chore: release vX.Y.Z", which would re-trigger this
+    # workflow and fail with "no commits since the latest tag".
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore: release') }}"
     permissions:
       contents: write
       id-token: write
