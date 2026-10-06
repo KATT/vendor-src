@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           cache: pnpm
-          node-version: 22.13.0
+          node-version-file: .nvmrc
       - run: pnpm install --prod --engine-strict --ignore-scripts
 
   format_check:
@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/prepare
-      - run: pnpm format --list-different
+      - run: pnpm format:check
 
   lint:
     name: Lint
@@ -34,7 +34,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/prepare
-      - run: pnpm build
       - run: pnpm lint
 
   test:
@@ -53,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/prepare
-      - run: pnpm tsc
+      - run: pnpm typecheck
 
 name: CI
 

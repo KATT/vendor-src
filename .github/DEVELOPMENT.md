@@ -24,31 +24,23 @@ pnpm build --watch
 
 ## Formatting
 
-[Prettier](https://prettier.io) is used to format code.
-It should be applied automatically when you save files in VS Code or make a Git commit.
+[Oxfmt](https://oxc.rs/docs/guide/usage/formatter) is used to format code.
+Auto-formatting should happen when you save files in your editor via [lint-staged](https://github.com/lint-staged/lint-staged) and [husky](https://typicode.github.io/husky).
 
 To manually reformat all files, you can run:
 
 ```shell
-pnpm format --write
+pnpm format
 ```
 
 ## Linting
 
-This package includes several forms of linting to enforce consistent code quality and styling.
-Each should be shown in VS Code, and can be run manually on the command-line:
-
-- `pnpm lint` ([ESLint](https://eslint.org) with [typescript-eslint](https://typescript-eslint.io)): Lints source files, including JavaScript, Markdown, and TypeScript
-
-Read the individual documentation for each linter to understand how it can be configured and used best.
-
-For example, ESLint can be run with `--fix` to auto-fix some lint rule complaints:
+This package uses [Oxlint](https://oxc.rs/docs/guide/usage/linter) to enforce consistent code quality.
 
 ```shell
-pnpm run lint --fix
+pnpm lint
+pnpm lint:fix
 ```
-
-Note that you'll need to run `pnpm build` before `pnpm lint` so that lint rules which check the file system can pick up on any built files.
 
 ## Testing
 
