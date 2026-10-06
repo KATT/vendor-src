@@ -1,3 +1,5 @@
+import { rmSync } from "node:fs";
+
 import { Effect, String as EffectString } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
@@ -109,8 +111,15 @@ export const subtreePull = (prefix: string, url: string, ref: string) =>
 		"--squash",
 	]);
 
+/**
+ * Delete a path from the working tree. Prefer filesystem remove so untracked
+ * matches (e.g. `.DS_Store`) do not fail `git rm`; `commitAll` stages tracked
+ * deletions via `git add -A`.
+ */
 export const removePath = (path: string) =>
-	runInherit("rm", ["rm", "-rf", path]);
+	Effect.sync(() => {
+		rmSync(path, { recursive: true, force: true });
+	});
 
 export const removePaths = (paths: readonly string[]) =>
 	Effect.gen(function* () {
