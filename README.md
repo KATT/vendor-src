@@ -14,7 +14,7 @@ Coding agents are better at exploring source than reading documentation. `node_m
 pnpm add -D vendor-src
 # pnpm workspaces: pnpm add -Dw vendor-src
 # pnpm catalogs: if `pnpm add -Dw` errors with "Invalid Version", bump the
-# catalog entry in pnpm-workspace.yaml (e.g. vendor-src: ^0.3.2) then pnpm install
+# catalog entry in pnpm-workspace.yaml then pnpm install
 ```
 
 ## Quick start (copy/paste for agents)
@@ -43,12 +43,11 @@ Set up vendor-src in this repo:
 5. Otherwise run: pnpm exec vendor-src add <package>
    Example: pnpm exec vendor-src add effect
    (package must already be installed so the matching git tag can be resolved)
-6. Commit vendor-src.json, AGENTS.md (when it is a real file), .ignore,
-   .oxfmtrc.json / editor ignores if changed, package.json (postinstall), and
-   the subtree commit vendor-src created. Review diffs: do not let oxfmt /
-   ignores get wiped.
-7. Never run formatters/linters on repos/**. vendor-src already writes .ignore,
-   .oxfmtrc.json ignorePatterns, and editor excludes. If you add a new tool,
+6. Commit vendor-src.json, AGENTS.md (when it is a real file), .oxfmtrc.json /
+   editor ignores if changed, package.json (postinstall), and the subtree
+   commit vendor-src created. Review diffs: do not let oxfmt / ignores get wiped.
+7. Never run formatters/linters on repos/**. vendor-src already writes
+   .oxfmtrc.json ignorePatterns and editor excludes. If you add a new tool,
    exclude repos/** before the first run.
 8. Prefer reading repos/<name> as read-only reference. Do not import from
    repos/ — keep importing the normal npm package.
@@ -82,7 +81,7 @@ pnpm exec vendor-src remove effect
 
 - writes `vendor-src.json`
 - maintains a managed section in `AGENTS.md` when it is a regular file (skips symlinks)
-- writes/merges `.ignore` and `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `repos/`
+- writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `repos/`
 - if `.prettierignore` / `.eslintignore` already exist, merges `repos/` into them too (does not create those files)
 - merges editor excludes into `.vscode/settings.json`
 - adds a `postinstall` script that runs `vendor-src check`
@@ -92,11 +91,6 @@ pnpm exec vendor-src remove effect
 Vendored trees are large upstream checkouts. A single repo-wide formatter run without excludes can rewrite thousands of files.
 
 `vendor-src add` writes the ignores for you. If you are wiring tooling manually, copy/paste:
-
-```gitignore
-# .ignore
-repos/
-```
 
 ```json
 // .oxfmtrc.json
@@ -131,9 +125,7 @@ export default defineConfig({
 
 There are **no default ignore patterns**. After each subtree add/pull (and on `sync` even when already current), vendor-src **deletes** only paths matching globs you configure per repo in `vendor-src.json` or via `--ignore` on `add`.
 
-Since **0.3.4**, ignore entries are **globs** (not regexes). If you upgraded from an older release, rewrite patterns like `(^|/)scratchpad(/|$)` to `scratchpad/**`. `vendor-src check` warns when a pattern still looks like the old regex form.
-
-Patterns match posix paths relative to that repo root; a trailing `/**` also matches the directory itself:
+Ignore entries are **globs** (not regexes), matched against posix paths relative to that repo root. A trailing `/**` also matches the directory itself. `vendor-src check` warns if a pattern still looks like a regex (e.g. `(^|/)…`).
 
 ```json
 {

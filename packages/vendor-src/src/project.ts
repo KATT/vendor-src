@@ -4,7 +4,6 @@ import { Console, Effect, FileSystem, Path } from "effect";
 
 import { upsertAgentsBlock, type AgentsRepoLine } from "./agentsMd.ts";
 import {
-	ALWAYS_IGNORE_FILES,
 	detectIndent,
 	mergeOxfmtConfig,
 	mergeToolingIgnoreFiles,
@@ -110,7 +109,7 @@ export const updateEditorIgnores = (projectRoot: string, dir: string) =>
 		const path = yield* Path.Path;
 
 		const existing: Partial<Record<ToolingIgnoreFile, string>> = {};
-		for (const file of [...ALWAYS_IGNORE_FILES, ...OPTIONAL_IGNORE_FILES]) {
+		for (const file of OPTIONAL_IGNORE_FILES) {
 			const fullPath = path.join(projectRoot, file);
 			if (yield* fs.exists(fullPath)) {
 				existing[file] = yield* fs.readFileString(fullPath);
