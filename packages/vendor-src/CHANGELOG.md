@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.4](https://github.com/KATT/vendor-src/compare/0.3.3...0.3.4) (2026-10-06)
+
+### Bug Fixes
+
+- use globs for subtree ignore patterns ([#10](https://github.com/KATT/vendor-src/issues/10)) ([eaa7362](https://github.com/KATT/vendor-src/commit/eaa73621be50a398b88dd1e496fe028cda273bcd))
+
 ## [0.3.3](https://github.com/KATT/vendor-src/compare/0.3.2...0.3.3) (2026-10-06)
 
 ### Bug Fixes
