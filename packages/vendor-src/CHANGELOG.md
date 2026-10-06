@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2](https://github.com/KATT/vendor-src/compare/0.3.1...0.3.2) (2026-10-06)
+
+### Bug Fixes
+
+- preserve JSONC oxfmt configs and clarify add failures ([#8](https://github.com/KATT/vendor-src/issues/8)) ([089c306](https://github.com/KATT/vendor-src/commit/089c306868e6fb1f788a8185fbeb8e42cf117c85))
+
 ## [0.3.1](https://github.com/KATT/vendor-src/compare/0.3.0...0.3.1) (2026-10-06)
 
 ### Bug Fixes
