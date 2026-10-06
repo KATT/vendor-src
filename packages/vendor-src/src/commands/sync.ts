@@ -80,9 +80,12 @@ export const syncCommand = Command.make(
 			});
 		}
 
+		// Always refresh AGENTS so format migrations and repos/AGENTS.md apply
+		// even when installed versions already match the manifest.
+		yield* updateAgentsMd(projectRoot, manifest);
+
 		if (updated > 0) {
 			yield* writeManifest(projectRoot, manifest);
-			yield* updateAgentsMd(projectRoot, manifest);
 			yield* Console.log(
 				`Updated ${updated} vendored repo(s). Commit the subtree and vendor-src.json changes.`,
 			);

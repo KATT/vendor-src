@@ -15,7 +15,8 @@ function normalizeDir(dir: string): string {
 
 /**
  * Concise managed block for the project-root AGENTS.md.
- * Uses the configured vendor directory (default `repos`).
+ * Wording adapted from the Effect blog on vendoring source for coding agents.
+ * Always lists packages so agents need not grep the tree.
  */
 export function renderAgentsBlock(
 	repos: AgentsRepoLine[],
@@ -24,15 +25,23 @@ export function renderAgentsBlock(
 	const root = normalizeDir(dir);
 	const lines = [
 		AGENTS_START,
-		"## Vendored sources",
+		"## Vendored Repositories",
 		"",
-		`Read-only dependency checkouts under \`${root}/\` (details in \`${root}/AGENTS.md\`). Do not format, edit, or import from there — keep using the npm packages.`,
+		`This project vendors external repositories under \`${root}/\` (see \`${root}/AGENTS.md\`).`,
+		"",
+		"- Use vendored repositories as **read-only reference material** when working with related libraries",
+		"- Prefer examples and patterns from the vendored source over generated guesses or web search results",
+		`- Do not edit files under \`${root}/\` unless explicitly asked`,
+		`- Do not import from \`${root}/\` — application code should continue importing from normal package dependencies`,
 		"",
 	];
 
 	if (repos.length > 0) {
 		for (const repo of repos) {
-			lines.push(`- \`${repo.path}\` — \`${repo.package}\``);
+			const version = repo.version ? `@${repo.version}` : "";
+			lines.push(
+				`- \`${repo.package}${version}\` → \`${repo.path}\` — idiomatic usage, tests, module structure, and API design`,
+			);
 		}
 		lines.push("");
 	}
@@ -50,14 +59,17 @@ export function renderVendorDirAgentsMd(
 	const lines = [
 		"# Vendored repositories",
 		"",
-		`This directory (\`${root}/\`) holds [vendor-src](https://www.npmjs.com/package/vendor-src) git-subtree checkouts, pinned to the versions installed in this project.`,
+		`This directory (\`${root}/\`) holds git-subtree checkouts of dependencies, managed by [vendor-src](https://www.npmjs.com/package/vendor-src) and pinned to the versions installed in this project.`,
+		"",
+		"Coding agents are better at exploring source than reading documentation. Prefer these trees over docs or `node_modules` when learning how a library is meant to be used.",
 		"",
 		"## How to use",
 		"",
-		"- Prefer reading these trees over docs when exploring library APIs and behavior",
-		"- Treat everything here as **read-only** — do not format, lint-fix, or mass-edit",
-		"- Do not import application code from these paths; keep importing the normal npm packages",
-		`- Config lives in \`vendor-src.json\` (\`dir\` defaults to \`repos\`; this tree uses \`${root}\`)`,
+		"- Treat everything here as **read-only reference material**",
+		"- Prefer examples and patterns from this source over generated guesses or web search results",
+		"- Do not format, lint-fix, or mass-edit these trees",
+		"- Do not import application code from these paths — keep importing the normal npm packages",
+		`- Config: \`vendor-src.json\` (\`dir\` defaults to \`repos\`; this tree uses \`${root}\`)`,
 		"",
 	];
 
@@ -67,9 +79,13 @@ export function renderVendorDirAgentsMd(
 		for (const repo of repos) {
 			const pin =
 				repo.version !== undefined
-					? ` @${repo.version}${repo.ref ? ` (\`${repo.ref}\`)` : ""}`
-					: "";
-			lines.push(`- \`${repo.name}/\` — \`${repo.package}\`${pin}`);
+					? repo.ref
+						? ` (\`${repo.package}@${repo.version}\`, tag \`${repo.ref}\`)`
+						: ` (\`${repo.package}@${repo.version}\`)`
+					: ` (\`${repo.package}\`)`;
+			lines.push(
+				`- \`${repo.name}/\`${pin} — inspect for idiomatic usage, tests, module structure, and API design`,
+			);
 		}
 		lines.push("");
 	} else {
