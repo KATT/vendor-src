@@ -9,16 +9,26 @@ import {
 } from "./agentsMd.ts";
 
 describe(renderAgentsBlock, () => {
-	it("stays concise and uses the configured dir", () => {
+	it("lists packages and uses blog-style guidance", () => {
 		const block = renderAgentsBlock(
-			[{ name: "effect", package: "effect", path: "vendor/effect" }],
+			[
+				{
+					name: "effect",
+					package: "effect",
+					path: "vendor/effect",
+					version: "4.0.1",
+				},
+			],
 			"vendor",
 		);
 		expect(block).toContain(AGENTS_START);
+		expect(block).toContain("## Vendored Repositories");
 		expect(block).toContain("`vendor/AGENTS.md`");
-		expect(block).toContain("`vendor/effect`");
+		expect(block).toContain("read-only reference material");
+		expect(block).toContain(
+			"`effect@4.0.1` → `vendor/effect` — idiomatic usage, tests, module structure, and API design",
+		);
 		expect(block).not.toContain("Keep tooling out of vendored trees");
-		expect(block.split("\n").length).toBeLessThan(12);
 	});
 });
 
@@ -38,7 +48,9 @@ describe(renderVendorDirAgentsMd, () => {
 		);
 		expect(md).toContain("# Vendored repositories");
 		expect(md).toContain("`repos/`");
-		expect(md).toContain("`effect/` — `effect` @4.0.1 (`effect@4.0.1`)");
+		expect(md).toContain(
+			"`effect/` (`effect@4.0.1`, tag `effect@4.0.1`) — inspect for idiomatic usage",
+		);
 		expect(md).toContain("vendor-src.json");
 	});
 });
@@ -53,6 +65,7 @@ describe(upsertAgentsBlock, () => {
 		expect(result).toContain("`repos/effect`");
 		expect(result).toContain("`effect`");
 		expect(result).toContain("repos/AGENTS.md");
+		expect(result).toMatch(/`effect` → `repos\/effect`/);
 	});
 
 	it("replaces an existing managed block", () => {

@@ -1,9 +1,14 @@
 <!-- vendor-src:start -->
 
-## Vendored sources
+## Vendored Repositories
 
-Read-only dependency checkouts under `repos/` (details in `repos/AGENTS.md`). Do not format, edit, or import from there — keep using the npm packages.
+This project vendors external repositories under `repos/` (see `repos/AGENTS.md`).
 
-- `repos/effect` — `effect`
+- Use vendored repositories as **read-only reference material** when working with related libraries
+- Prefer examples and patterns from the vendored source over generated guesses or web search results
+- Do not edit files under `repos/` unless explicitly asked
+- Do not import from `repos/` — application code should continue importing from normal package dependencies
+
+- `effect@4.0.1` → `repos/effect` — idiomatic usage, tests, module structure, and API design
 
 <!-- vendor-src:end -->
