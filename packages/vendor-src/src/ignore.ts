@@ -87,3 +87,8 @@ export function resolveIgnorePatterns(options: {
 		...new Set([...(options.repoIgnore ?? []), ...(options.cliIgnore ?? [])]),
 	];
 }
+
+/** Pre-0.3.4 manifests used regex strings; picomatch treats them as globs and they won't match. */
+export function isLegacyRegexIgnorePattern(pattern: string): boolean {
+	return pattern.includes("(^|/");
+}

@@ -1,6 +1,7 @@
 import { Console, Effect } from "effect";
 import { Command, Flag } from "effect/cli";
 
+import { isLegacyRegexIgnorePattern } from "../ignore.ts";
 import { resolveInstalledVersions } from "../installedVersions.ts";
 import { findDrift } from "../manifest.ts";
 import { findProjectRoot, readManifest } from "../project.ts";
@@ -21,6 +22,16 @@ export const checkCommand = Command.make(
 		const names = Object.values(manifest.repos).map((repo) => repo.package);
 		if (names.length === 0) {
 			return;
+		}
+
+		for (const [name, repo] of Object.entries(manifest.repos)) {
+			for (const pattern of repo.ignore ?? []) {
+				if (isLegacyRegexIgnorePattern(pattern)) {
+					yield* Console.log(
+						`vendor-src: ${name} ignore pattern looks like a pre-0.3.4 regex; use globs (e.g. scratchpad/**): ${pattern}`,
+					);
+				}
+			}
 		}
 
 		const installed = resolveInstalledVersions(names, projectRoot);
