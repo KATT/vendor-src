@@ -5,22 +5,48 @@ export {
 	renderVendorDirAgentsMd,
 	upsertAgentsBlock,
 } from "./agentsMd.ts";
-export { mergeIgnoreFile, mergeVsCodeSettings } from "./editorConfig.ts";
+export { layer, run, vendorSrc } from "./cli.ts";
 export {
-	DEFAULT_IGNORE,
-	findIgnoredPaths,
+	mergeIgnoreFile,
+	mergeOxfmtConfig,
+	mergeVsCodeSettings,
+} from "./editorConfig.ts";
+export {
+	Git,
+	GitError,
+	TagNotFoundError,
+	toFetchRef,
+	WorkingTreeError,
+} from "./git.ts";
+export {
+	compileIgnorePatterns,
 	matchesIgnore,
-	resolveIgnorePatterns,
+	selectIgnoredPaths,
 } from "./ignore.ts";
 export {
+	decodeManifest,
+	DEFAULT_DIR,
+	emptyManifest,
+	encodeManifest,
 	findDrift,
+	Manifest,
+	ManifestError,
+	ManifestJson,
 	MANIFEST_FILENAME,
 	MANIFEST_SCHEMA_URL,
-	parseManifest,
-	stringifyManifest,
-	type VendorSrcManifest,
-	type VendoredRepo,
+	removeRepo,
+	repoPrefix,
+	setRepo,
+	vendorDir,
+	VendoredRepo,
+	type Drift,
 } from "./manifest.ts";
+export {
+	InstalledPackageJson,
+	InstalledPackages,
+	parsePnpmWorkspacePackages,
+} from "./packages.ts";
+export { ConfigFileError, Project, ProjectNotFoundError } from "./project.ts";
 export { defaultVendorName, normalizeRepositoryUrl } from "./repository.ts";
 export { compareSemver, maxSemver, parseSemver } from "./semver.ts";
 export {

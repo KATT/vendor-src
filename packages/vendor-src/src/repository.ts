@@ -1,7 +1,9 @@
+import { unscopedName } from "./tags.ts";
+
 export interface PackageRepository {
-	type?: string;
-	url?: string;
-	directory?: string;
+	readonly type?: string;
+	readonly url?: string;
+	readonly directory?: string;
 }
 
 /**
@@ -50,19 +52,6 @@ export function normalizeRepositoryUrl(
 	return `${url}.git`;
 }
 
-export function defaultVendorName(
-	packageName: string,
-	repository?: PackageRepository | string,
-): string {
-	if (typeof repository === "object" && repository.directory) {
-		const parts = repository.directory.split("/").filter(Boolean);
-		const last = parts.at(-1);
-		if (last && last !== "packages") {
-			return last;
-		}
-	}
-	const unscoped = packageName.includes("/")
-		? packageName.slice(packageName.lastIndexOf("/") + 1)
-		: packageName;
-	return unscoped;
-}
+/** Default checkout directory name, e.g. `@effect/platform-node` -> `platform-node`. */
+export const defaultVendorName = (packageName: string): string =>
+	unscopedName(packageName);

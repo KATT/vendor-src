@@ -1,121 +1,115 @@
+import { Effect, Record, Schema } from "effect";
+
 export const MANIFEST_FILENAME = "vendor-src.json";
 
 /** Published schema URL for `$schema` in vendor-src.json (resolves via package export). */
 export const MANIFEST_SCHEMA_URL = "https://unpkg.com/vendor-src/schema.json";
 
-export interface VendoredRepo {
-	package: string;
-	url: string;
-	version: string;
-	ref: string;
+export const DEFAULT_DIR = "repos";
+
+export const VendoredRepo = Schema.Struct({
+	package: Schema.NonEmptyString,
+	url: Schema.NonEmptyString,
+	version: Schema.NonEmptyString,
+	ref: Schema.NonEmptyString,
 	/** Path globs to prune from this vendored repo after subtree add/pull/sync. */
-	ignore?: string[];
+	ignore: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+export type VendoredRepo = typeof VendoredRepo.Type;
+
+export const Manifest = Schema.Struct({
+	$schema: Schema.String.pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed(MANIFEST_SCHEMA_URL)),
+	),
+	dir: Schema.NonEmptyString.pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_DIR)),
+	),
+	repos: Schema.Record(Schema.String, VendoredRepo),
+});
+export type Manifest = typeof Manifest.Type;
+
+/** `vendor-src.json` file contents, tab-indented like the files we write. */
+export const ManifestJson = Schema.fromJsonString(Manifest, { space: "\t" });
+
+export class ManifestError extends Schema.TaggedError<ManifestError>()(
+	"ManifestError",
+	{
+		path: Schema.String,
+		reason: Schema.String,
+	},
+) {
+	override get message() {
+		return `${this.path} is invalid: ${this.reason}`;
+	}
 }
 
-export interface VendorSrcManifest {
-	$schema?: string;
-	dir: string;
-	repos: Record<string, VendoredRepo>;
-}
-
-export const emptyManifest = (): VendorSrcManifest => ({
-	$schema: MANIFEST_SCHEMA_URL,
-	dir: "repos",
-	repos: {},
+export const decodeManifest = Effect.fn("decodeManifest")(function* (
+	raw: string,
+	path: string = MANIFEST_FILENAME,
+) {
+	return yield* Schema.decodeEffect(ManifestJson)(raw).pipe(
+		Effect.mapError(
+			(error) => new ManifestError({ path, reason: error.message }),
+		),
+	);
 });
 
-export function parseManifest(raw: string): VendorSrcManifest {
-	const parsed = JSON.parse(raw) as Partial<VendorSrcManifest> & {
-		ignore?: unknown;
-	};
-	const repos: Record<string, VendoredRepo> = {};
-	if (
-		parsed.repos &&
-		typeof parsed.repos === "object" &&
-		!Array.isArray(parsed.repos)
-	) {
-		for (const [name, repo] of Object.entries(parsed.repos)) {
-			if (!repo || typeof repo !== "object" || Array.isArray(repo)) {
-				continue;
-			}
-			const entry = repo as Partial<VendoredRepo>;
-			repos[name] = {
-				package: typeof entry.package === "string" ? entry.package : name,
-				url: typeof entry.url === "string" ? entry.url : "",
-				version: typeof entry.version === "string" ? entry.version : "",
-				ref: typeof entry.ref === "string" ? entry.ref : "",
-				...(Array.isArray(entry.ignore)
-					? {
-							ignore: entry.ignore.filter(
-								(item): item is string => typeof item === "string",
-							),
-						}
-					: {}),
-			};
-		}
-	}
+export const encodeManifest = (manifest: Manifest): string =>
+	`${Schema.encodeSync(ManifestJson)(manifest)}\n`;
 
-	return {
-		$schema:
-			typeof parsed.$schema === "string" && parsed.$schema.length > 0
-				? parsed.$schema
-				: MANIFEST_SCHEMA_URL,
-		dir:
-			typeof parsed.dir === "string" && parsed.dir.length > 0
-				? parsed.dir
-				: "repos",
-		repos,
-	};
-}
+export const emptyManifest: Manifest = {
+	$schema: MANIFEST_SCHEMA_URL,
+	dir: DEFAULT_DIR,
+	repos: {},
+};
 
-export function stringifyManifest(manifest: VendorSrcManifest): string {
-	const repos: Record<string, VendoredRepo> = {};
-	for (const [name, repo] of Object.entries(manifest.repos)) {
-		const entry: VendoredRepo = {
-			package: repo.package,
-			url: repo.url,
-			version: repo.version,
-			ref: repo.ref,
-		};
-		if (repo.ignore && repo.ignore.length > 0) {
-			entry.ignore = [...repo.ignore];
-		}
-		repos[name] = entry;
-	}
+/** The vendor directory without trailing slashes, e.g. `repos`. */
+export const vendorDir = (manifest: Manifest): string =>
+	manifest.dir.replace(/\/+$/, "") || DEFAULT_DIR;
 
-	return `${JSON.stringify(
-		{
-			$schema: manifest.$schema ?? MANIFEST_SCHEMA_URL,
-			dir: manifest.dir,
-			repos,
-		},
-		null,
-		"\t",
-	)}\n`;
-}
+/** Project-relative path of a vendored checkout, e.g. `repos/effect`. */
+export const repoPrefix = (manifest: Manifest, name: string): string =>
+	`${vendorDir(manifest)}/${name}`;
+
+export const setRepo = (
+	manifest: Manifest,
+	name: string,
+	{ ignore, ...repo }: VendoredRepo,
+): Manifest => ({
+	...manifest,
+	repos: {
+		...manifest.repos,
+		[name]: ignore && ignore.length > 0 ? { ...repo, ignore } : repo,
+	},
+});
+
+export const removeRepo = (manifest: Manifest, name: string): Manifest => ({
+	...manifest,
+	repos: Record.remove(manifest.repos, name),
+});
 
 export interface Drift {
-	name: string;
-	package: string;
-	vendored: string;
-	installed: string | undefined;
+	readonly name: string;
+	readonly package: string;
+	readonly vendored: string;
+	readonly installed: string | undefined;
 }
 
 export function findDrift(
-	manifest: VendorSrcManifest,
+	manifest: Manifest,
 	installed: ReadonlyMap<string, string>,
 ): Drift[] {
-	const drifts: Drift[] = [];
-	for (const [name, repo] of Object.entries(manifest.repos)) {
+	return Object.entries(manifest.repos).flatMap(([name, repo]) => {
 		const current = installed.get(repo.package);
-		if (current !== repo.version) {
-			drifts.push({
-				name,
-				package: repo.package,
-				vendored: repo.version,
-				installed: current,
-			});
-		}
-	}
-	return drifts;
+		return current === repo.version
+			? []
+			: [
+					{
+						name,
+						package: repo.package,
+						vendored: repo.version,
+						installed: current,
+					},
+				];
+	});
 }

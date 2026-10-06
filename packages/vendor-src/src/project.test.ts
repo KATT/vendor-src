@@ -1,83 +1,199 @@
-import {
-	lstatSync,
-	mkdtempSync,
-	readFileSync,
-	readlinkSync,
-	rmSync,
-	symlinkSync,
-	writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { NodeServices } from "@effect/platform-node";
-import { Effect } from "effect";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { assert, describe, it } from "@effect/vitest";
+import { Effect, FileSystem, Path } from "effect";
 
-import { emptyManifest, type VendorSrcManifest } from "./manifest.ts";
-import { updateAgentsMd } from "./project.ts";
+import { emptyManifest, setRepo } from "./manifest.ts";
+import { Project } from "./project.ts";
+import {
+	exists,
+	git,
+	isolateGitConfig,
+	makeProject,
+	readFile,
+	tempDir,
+	writeFiles,
+} from "./testUtils.ts";
 
-const temps: string[] = [];
+isolateGitConfig();
 
-afterEach(() => {
-	for (const dir of temps.splice(0)) {
-		rmSync(dir, { recursive: true, force: true });
-	}
+const manifest = setRepo(emptyManifest, "effect", {
+	package: "effect",
+	url: "https://github.com/Effect-TS/effect.git",
+	version: "4.0.1",
+	ref: "effect@4.0.1",
 });
 
-function runUpdate(projectRoot: string, manifest: VendorSrcManifest) {
-	return Effect.runPromise(
-		updateAgentsMd(projectRoot, manifest).pipe(
-			Effect.provide(NodeServices.layer),
-		),
+const withProject = <A, E, R>(
+	root: string,
+	effect: Effect.Effect<A, E, R | Project>,
+) => Effect.provide(effect, Project.layerFrom(root));
+
+describe("Project.make", () => {
+	it.effect("finds the root from a nested directory", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* makeProject(yield* tempDir);
+			yield* writeFiles(root, { "packages/app/package.json": "{}" });
+
+			const project = yield* Project.make(path.join(root, "packages", "app"));
+			// packages/app has a package.json but no .git, so keep walking up.
+			assert.strictEqual(project.root, root);
+		}).pipe(Effect.provide(NodeServices.layer)),
 	);
-}
 
-describe(updateAgentsMd, () => {
-	it("writes the managed block through an AGENTS.md → README.md symlink", async () => {
-		const root = mkdtempSync(join(tmpdir(), "vendor-src-agents-symlink-"));
-		temps.push(root);
+	it.effect("fails outside a project", () =>
+		Effect.gen(function* () {
+			const dir = yield* tempDir;
+			const error = yield* Project.make(dir).pipe(Effect.flip);
+			assert.strictEqual(error._tag, "ProjectNotFoundError");
+			assert.include(error.message, "not inside a git repository");
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+});
 
-		writeFileSync(join(root, "README.md"), "# Toy projects\n\nHello.\n");
-		symlinkSync("README.md", join(root, "AGENTS.md"));
+describe("Project.readManifest / writeManifest", () => {
+	it.effect("returns an empty manifest when the file is missing", () =>
+		Effect.gen(function* () {
+			const root = yield* makeProject(yield* tempDir);
+			const read = yield* withProject(
+				root,
+				Project.use((project) => project.readManifest),
+			);
+			assert.deepStrictEqual(read, emptyManifest);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
 
-		const manifest: VendorSrcManifest = {
-			...emptyManifest(),
-			repos: {
-				effect: {
-					package: "effect",
-					url: "https://github.com/Effect-TS/effect.git",
-					version: "4.0.1",
-					ref: "effect@4.0.1",
-				},
-			},
-		};
+	it.effect("round-trips through vendor-src.json", () =>
+		Effect.gen(function* () {
+			const root = yield* makeProject(yield* tempDir);
+			const read = yield* withProject(
+				root,
+				Effect.gen(function* () {
+					const project = yield* Project;
+					yield* project.writeManifest(manifest);
+					return yield* project.readManifest;
+				}),
+			);
+			assert.deepStrictEqual(read, manifest);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+});
 
-		await runUpdate(root, manifest);
+describe("Project.writeAgentsMd", () => {
+	it.effect(
+		"writes the managed block through an AGENTS.md → README.md symlink",
+		() =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* makeProject(yield* tempDir, {
+					"README.md": "# Toy projects\n\nHello.\n",
+				});
+				yield* fs.symlink("README.md", path.join(root, "AGENTS.md"));
 
-		expect(lstatSync(join(root, "AGENTS.md")).isSymbolicLink()).toBe(true);
-		expect(readlinkSync(join(root, "AGENTS.md"))).toBe("README.md");
+				yield* withProject(
+					root,
+					Project.use((project) => project.writeAgentsMd(manifest)),
+				);
 
-		const readme = readFileSync(join(root, "README.md"), "utf8");
-		expect(readme).toContain("# Toy projects");
-		expect(readme).toContain("<!-- vendor-src:start -->");
-		expect(readme).toContain("- `effect@4.0.1` → `repos/effect`");
-		expect(readme).toContain("### Vendored packages");
-		expect(readme).toContain("<!-- vendor-src:end -->");
+				assert.strictEqual(
+					yield* fs.readLink(path.join(root, "AGENTS.md")),
+					"README.md",
+				);
+				const readme = yield* readFile(root, "README.md");
+				assert.include(readme, "# Toy projects");
+				assert.include(readme, "<!-- vendor-src:start -->");
+				assert.include(readme, "- `effect@4.0.1` → `repos/effect`");
+				assert.include(readme, "### Vendored packages");
+				assert.include(readme, "<!-- vendor-src:end -->");
 
-		const vendorAgents = readFileSync(join(root, "repos", "AGENTS.md"), "utf8");
-		expect(vendorAgents).toContain("## Don'ts");
-		expect(vendorAgents).toContain("`effect@4.0.1`");
-	});
+				const vendorAgents = yield* readFile(root, "repos", "AGENTS.md");
+				assert.include(vendorAgents, "## Don'ts");
+				assert.include(vendorAgents, "`effect@4.0.1`");
+			}).pipe(Effect.provide(NodeServices.layer)),
+	);
 
-	it("creates AGENTS.md when missing", async () => {
-		const root = mkdtempSync(join(tmpdir(), "vendor-src-agents-create-"));
-		temps.push(root);
+	it.effect("creates AGENTS.md when missing", () =>
+		Effect.gen(function* () {
+			const root = yield* makeProject(yield* tempDir);
+			yield* withProject(
+				root,
+				Project.use((project) => project.writeAgentsMd(emptyManifest)),
+			);
+			const agents = yield* readFile(root, "AGENTS.md");
+			assert.include(agents, "<!-- vendor-src:start -->");
+			assert.include(agents, "## Vendored Source");
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+});
 
-		await runUpdate(root, emptyManifest());
+describe("Project.writeEditorIgnores", () => {
+	it.effect(
+		"merges oxfmt + VS Code config and only touches existing legacy ignore files",
+		() =>
+			Effect.gen(function* () {
+				const root = yield* makeProject(yield* tempDir, {
+					".prettierignore": "coverage/\n",
+				});
+				yield* withProject(
+					root,
+					Project.use((project) => project.writeEditorIgnores(manifest)),
+				);
+				assert.strictEqual(
+					yield* readFile(root, ".prettierignore"),
+					"coverage/\nrepos/\n",
+				);
+				assert.isFalse(yield* exists(root, ".eslintignore"));
+				assert.include(yield* readFile(root, ".oxfmtrc.json"), '"repos/"');
+				assert.include(
+					yield* readFile(root, ".vscode", "settings.json"),
+					'"repos/**": true',
+				);
+			}).pipe(Effect.provide(NodeServices.layer)),
+	);
 
-		const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
-		expect(agents).toContain("<!-- vendor-src:start -->");
-		expect(agents).toContain("## Vendored Source");
-	});
+	it.effect("reports invalid JSONC with the file name", () =>
+		Effect.gen(function* () {
+			const root = yield* makeProject(yield* tempDir, {
+				".vscode/settings.json": "{ not json",
+			});
+			const error = yield* withProject(
+				root,
+				Project.use((project) => project.writeEditorIgnores(manifest)),
+			).pipe(Effect.flip);
+			assert.strictEqual(error._tag, "ConfigFileError");
+			assert.include(error.message, ".vscode/settings.json is not valid");
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+});
+
+describe("Project.ensurePostinstall", () => {
+	it.effect("appends to an existing postinstall and preserves key order", () =>
+		Effect.gen(function* () {
+			const root = yield* makeProject(yield* tempDir, {
+				"package.json": `{\n  "name": "app",\n  "scripts": {\n    "postinstall": "husky"\n  },\n  "private": true\n}\n`,
+			});
+			git(root, "add", "-A");
+			yield* withProject(
+				root,
+				Project.use((project) => project.ensurePostinstall),
+			);
+			assert.strictEqual(
+				yield* readFile(root, "package.json"),
+				`{\n  "name": "app",\n  "scripts": {\n    "postinstall": "husky && vendor-src check"\n  },\n  "private": true\n}\n`,
+			);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("leaves the published vendor-src package alone", () =>
+		Effect.gen(function* () {
+			const raw = `{\n\t"name": "vendor-src"\n}\n`;
+			const root = yield* makeProject(yield* tempDir, { "package.json": raw });
+			yield* withProject(
+				root,
+				Project.use((project) => project.ensurePostinstall),
+			);
+			assert.strictEqual(yield* readFile(root, "package.json"), raw);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
 });

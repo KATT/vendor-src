@@ -1,3 +1,5 @@
+import { Predicate } from "effect";
+
 export function mergeIgnoreFile(
 	existing: string | undefined,
 	dir: string,
@@ -17,10 +19,7 @@ export function mergeVsCodeSettings(
 ): string {
 	const pattern = `${dir.replace(/\/$/, "")}/**`;
 	if (existingJson?.trim()) {
-		const settings = parseJsonObject(
-			existingJson,
-			".vscode/settings.json",
-		) as Record<string, unknown>;
+		const settings = parseJsonObject(existingJson);
 		const before = JSON.stringify(settings);
 		applyVsCodeExcludes(settings, pattern);
 		if (JSON.stringify(settings) === before) {
@@ -75,27 +74,6 @@ export const OPTIONAL_IGNORE_FILES = [
 
 export const OXFMT_CONFIG_FILE = ".oxfmtrc.json";
 
-export type OptionalIgnoreFile = (typeof OPTIONAL_IGNORE_FILES)[number];
-export type ToolingIgnoreFile = OptionalIgnoreFile;
-
-/**
- * Merge `repos/` into Prettier/ESLint ignore files only when those files
- * already exist. Oxfmt uses `.oxfmtrc.json` `ignorePatterns` instead.
- */
-export function mergeToolingIgnoreFiles(
-	existing: Partial<Record<ToolingIgnoreFile, string | undefined>>,
-	dir: string,
-): Partial<Record<ToolingIgnoreFile, string>> {
-	const pattern = `${dir.replace(/\/$/, "")}/`;
-	const result: Partial<Record<ToolingIgnoreFile, string>> = {};
-	for (const file of OPTIONAL_IGNORE_FILES) {
-		if (existing[file] !== undefined) {
-			result[file] = mergeIgnoreFile(existing[file], pattern);
-		}
-	}
-	return result;
-}
-
 /**
  * Ensure Oxfmt's native config excludes the vendor dir via `ignorePatterns`.
  *
@@ -111,10 +89,7 @@ export function mergeOxfmtConfig(
 		return `${JSON.stringify({ ignorePatterns: [pattern] }, null, "\t")}\n`;
 	}
 
-	const config = parseJsonObject(existingJson, OXFMT_CONFIG_FILE) as Record<
-		string,
-		unknown
-	>;
+	const config = parseJsonObject(existingJson);
 	const before = Array.isArray(config.ignorePatterns)
 		? [...(config.ignorePatterns as unknown[])]
 		: undefined;
@@ -131,15 +106,13 @@ export function mergeOxfmtConfig(
 	return `${JSON.stringify(config, null, detectIndent(existingJson))}\n`;
 }
 
-/** Parse JSON or JSONC (comments / trailing commas stripped). Fail loudly. */
-export function parseJsonObject(text: string, label: string): unknown {
-	try {
-		return JSON.parse(stripJsonc(text));
-	} catch (cause) {
-		throw new Error(
-			`${label} is not valid JSON/JSONC; fix it before running vendor-src (${String(cause)})`,
-		);
+/** Parse a JSON or JSONC object (comments / trailing commas stripped). Throws on invalid input. */
+export function parseJsonObject(text: string): Record<string, unknown> {
+	const value: unknown = JSON.parse(stripJsonc(text));
+	if (!Predicate.isObject(value)) {
+		throw new TypeError("expected a JSON object");
 	}
+	return value;
 }
 
 /** Strip `//` and block comments outside of strings; drop trailing commas. */

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vite-plus/test";
 import {
 	mergeIgnoreFile,
 	mergeOxfmtConfig,
-	mergeToolingIgnoreFiles,
 	mergeVsCodeSettings,
 } from "./editorConfig.ts";
 
@@ -15,20 +14,14 @@ describe(mergeIgnoreFile, () => {
 	});
 });
 
-describe(mergeToolingIgnoreFiles, () => {
-	it("only updates existing Prettier/ESLint ignore files", () => {
-		expect(mergeToolingIgnoreFiles({}, "repos")).toEqual({});
-
-		const withLegacy = mergeToolingIgnoreFiles(
-			{ ".prettierignore": "coverage/\n", ".eslintignore": "" },
-			"repos",
-		);
-		expect(withLegacy[".prettierignore"]).toContain("repos/");
-		expect(withLegacy[".eslintignore"]).toBe("repos/\n");
-	});
-});
-
 describe(mergeOxfmtConfig, () => {
+	it("throws on invalid JSON so callers can report the file", () => {
+		expect(() => mergeOxfmtConfig("{ nope", "repos")).toThrow();
+		expect(() => mergeOxfmtConfig("[]", "repos")).toThrow(
+			"expected a JSON object",
+		);
+	});
+
 	it("adds ignorePatterns without dropping other oxfmt settings", () => {
 		const merged = JSON.parse(
 			mergeOxfmtConfig('{\n\t"useTabs": true\n}\n', "repos"),

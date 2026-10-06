@@ -1,16 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-	DEFAULT_IGNORE,
-	findIgnoredPaths,
+	compileIgnorePatterns,
 	isLegacyRegexIgnorePattern,
 	matchesIgnore,
-	compileIgnorePatterns,
-	resolveIgnorePatterns,
+	selectIgnoredPaths,
 } from "./ignore.ts";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 describe(matchesIgnore, () => {
 	it("matches user globs including directory/**", () => {
@@ -41,36 +36,32 @@ describe(isLegacyRegexIgnorePattern, () => {
 	});
 });
 
-describe(resolveIgnorePatterns, () => {
-	it("has no built-in defaults", () => {
-		expect(DEFAULT_IGNORE).toEqual([]);
-		expect(resolveIgnorePatterns({})).toEqual([]);
+describe(selectIgnoredPaths, () => {
+	const listing = [
+		"src",
+		"src/ok.ts",
+		"src/.DS_Store",
+		".DS_Store",
+		"scratchpad",
+		"scratchpad/tmp.ts",
+		"scratchpad/nested",
+		"scratchpad/nested/.DS_Store",
+		"repos/nested/x.ts",
+	];
+
+	it("returns nothing without patterns", () => {
+		expect(selectIgnoredPaths(listing, [])).toEqual([]);
 	});
 
-	it("merges per-repo and CLI overrides only", () => {
-		const patterns = resolveIgnorePatterns({
-			repoIgnore: ["docs"],
-			cliIgnore: ["scratchpad/**"],
-		});
-		expect(patterns).toEqual(["docs", "scratchpad/**"]);
+	it("returns only the outermost match of each ignored tree", () => {
+		expect(
+			selectIgnoredPaths(listing, ["scratchpad/**", "**/.DS_Store"]),
+		).toEqual([".DS_Store", "scratchpad", "src/.DS_Store"]);
 	});
-});
 
-describe(findIgnoredPaths, () => {
-	it("returns matching paths under a tree", () => {
-		const root = mkdtempSync(join(tmpdir(), "vendor-src-ignore-"));
-		mkdirSync(join(root, "repos", "nested"), { recursive: true });
-		writeFileSync(join(root, "repos", "nested", "x.ts"), "export {}");
-		writeFileSync(join(root, ".DS_Store"), "");
-		mkdirSync(join(root, "scratchpad"));
-		writeFileSync(join(root, "scratchpad", "tmp.ts"), "export {}");
-		mkdirSync(join(root, "src"));
-		writeFileSync(join(root, "src", "ok.ts"), "export {}");
-
-		expect(findIgnoredPaths(root, [])).toEqual([]);
-		expect(findIgnoredPaths(root, ["scratchpad/**", "**/.DS_Store"])).toEqual([
-			".DS_Store",
-			"scratchpad",
-		]);
+	it("accepts Windows-style separators", () => {
+		expect(selectIgnoredPaths(["docs", "docs\\guide.md"], ["docs/**"])).toEqual(
+			["docs"],
+		);
 	});
 });
