@@ -124,7 +124,7 @@ export default defineConfig({
 
 ## Ignore patterns (subtree pruning)
 
-There are **no default ignore patterns**. After each subtree add/pull (and on `sync` even when already current), vendor-src **deletes** only paths matching globs you configure per repo in `vendor-src.json` or via `--ignore` on `add`.
+There are **no default ignore patterns**. After each `add` and `sync` (even when already current), vendor-src **deletes** only paths matching globs you configure per repo in `vendor-src.json` or via `--ignore` on `add`.
 
 Ignore entries are **globs** (not regexes), matched against posix paths relative to that repo root. A trailing `/**` also matches the directory itself. `vendor-src check` warns if a pattern still looks like a regex (e.g. `(^|/)…`).
 
