@@ -10,7 +10,6 @@ export default defineConfig({
 		printWidth: 80,
 		sortPackageJson: false,
 		ignorePatterns: [
-			".all-contributorsrc",
 			".husky/**",
 			"coverage/**",
 			"**/dist/**",
