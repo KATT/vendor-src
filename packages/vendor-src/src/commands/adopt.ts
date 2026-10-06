@@ -106,7 +106,7 @@ export const adoptCommand = Command.make(
 		yield* ensurePostinstall(projectRoot);
 
 		yield* Console.log(
-			`Adopted existing ${prefix} as ${packageName}@${version} (${gitRef}). Commit vendor-src.json, AGENTS.md, and editor ignores.`,
+			`Adopted existing ${prefix} as ${packageName}@${version} (${gitRef}). Commit vendor-src.json, AGENTS.md, ${manifest.dir}/AGENTS.md, and editor ignores.`,
 		);
 	}),
 ).pipe(

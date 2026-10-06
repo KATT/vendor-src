@@ -13,7 +13,7 @@
 		},
 		"dir": {
 			"type": "string",
-			"description": "Directory that holds vendored repositories.",
+			"description": "Directory that holds vendored repositories (default: repos). Change this if you prefer another folder name; AGENTS.md and ignore tooling follow this setting.",
 			"default": "repos",
 			"minLength": 1
 		},

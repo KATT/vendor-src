@@ -2,6 +2,7 @@ export {
 	AGENTS_END,
 	AGENTS_START,
 	renderAgentsBlock,
+	renderVendorDirAgentsMd,
 	upsertAgentsBlock,
 } from "./agentsMd.ts";
 export { mergeIgnoreFile, mergeVsCodeSettings } from "./editorConfig.ts";

@@ -2,7 +2,11 @@ import { lstatSync, readlinkSync } from "node:fs";
 
 import { Console, Effect, FileSystem, Path } from "effect";
 
-import { upsertAgentsBlock, type AgentsRepoLine } from "./agentsMd.ts";
+import {
+	renderVendorDirAgentsMd,
+	upsertAgentsBlock,
+	type AgentsRepoLine,
+} from "./agentsMd.ts";
 import {
 	detectIndent,
 	mergeOxfmtConfig,
@@ -73,33 +77,54 @@ export const updateAgentsMd = (
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
-		const file = path.join(projectRoot, "AGENTS.md");
-		const exists = yield* fs.exists(file);
-		const existing = exists ? yield* fs.readFileString(file) : undefined;
+		const dir = manifest.dir.replace(/\/$/, "") || "repos";
 		const repos: AgentsRepoLine[] = Object.entries(manifest.repos).map(
 			([name, repo]) => ({
 				name,
 				package: repo.package,
-				path: `${manifest.dir}/${name}`,
+				path: `${dir}/${name}`,
+				version: repo.version,
+				ref: repo.ref,
 			}),
 		);
-		if (exists) {
+
+		const rootAgents = path.join(projectRoot, "AGENTS.md");
+		const rootExists = yield* fs.exists(rootAgents);
+		const existing = rootExists
+			? yield* fs.readFileString(rootAgents)
+			: undefined;
+		if (rootExists) {
 			try {
-				if (lstatSync(file).isSymbolicLink()) {
-					const target = readlinkSync(file);
+				if (lstatSync(rootAgents).isSymbolicLink()) {
+					const target = readlinkSync(rootAgents);
 					yield* Console.log(
-						`Warning: AGENTS.md is a symlink to ${target}; skipping write to avoid mutating that target.\n` +
+						`Warning: AGENTS.md is a symlink to ${target}; skipping root write to avoid mutating that target.\n` +
 							`Create a real AGENTS.md (rm AGENTS.md && touch AGENTS.md) and re-run, or paste the vendor-src block into ${target} manually.`,
 					);
-					return;
+				} else {
+					yield* fs.writeFileString(
+						rootAgents,
+						upsertAgentsBlock(existing, repos, dir),
+					);
 				}
 			} catch {
-				// ignore race where the file disappears
+				yield* fs.writeFileString(
+					rootAgents,
+					upsertAgentsBlock(existing, repos, dir),
+				);
 			}
+		} else {
+			yield* fs.writeFileString(
+				rootAgents,
+				upsertAgentsBlock(undefined, repos, dir),
+			);
 		}
+
+		const vendorDir = path.join(projectRoot, dir);
+		yield* fs.makeDirectory(vendorDir, { recursive: true });
 		yield* fs.writeFileString(
-			file,
-			upsertAgentsBlock(existing, repos, manifest.dir),
+			path.join(vendorDir, "AGENTS.md"),
+			renderVendorDirAgentsMd(repos, dir),
 		);
 	});
 
