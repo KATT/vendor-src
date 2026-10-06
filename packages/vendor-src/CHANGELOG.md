@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1](https://github.com/KATT/vendor-src/compare/0.3.0...0.3.1) (2026-10-06)
+
+### Bug Fixes
+
+- sync root README/LICENSE into npm package on pack ([#7](https://github.com/KATT/vendor-src/issues/7)) ([011db86](https://github.com/KATT/vendor-src/commit/011db8652902e05aceefd46b9c3aac35b1b89d98))
+
 ## [0.3.0](https://github.com/KATT/vendor-src/compare/0.2.0...0.3.0) (2026-10-06)
 
 ### Features
