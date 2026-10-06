@@ -12,5 +12,5 @@
 		"target": "ES2023"
 	},
 	"include": ["src"],
-	"exclude": [".repos", "dist", "node_modules", "coverage"]
+	"exclude": ["repos", "dist", "node_modules", "coverage"]
 }

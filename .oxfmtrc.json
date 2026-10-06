@@ -1,3 +1,3 @@
 {
-	"ignorePatterns": [".repos/"]
+	"ignorePatterns": ["repos/"]
 }

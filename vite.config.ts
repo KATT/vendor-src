@@ -14,7 +14,7 @@ export default defineConfig({
 			"coverage/**",
 			"**/dist/**",
 			"pnpm-lock.yaml",
-			".repos/**",
+			"repos/**",
 		],
 	},
 });
