@@ -108,20 +108,23 @@ export const ensurePostinstall = (projectRoot: string) =>
 		const file = path.join(projectRoot, "package.json");
 		const raw = yield* fs.readFileString(file);
 		const pkg = JSON.parse(raw) as {
+			name?: string;
 			scripts?: Record<string, string>;
 			[key: string]: unknown;
 		};
 		const scripts = { ...pkg.scripts };
 		const current = scripts.postinstall;
+		const selfCheck = "node ./scripts/postinstall-check.mjs";
+		const dependencyCheck = "vendor-src check";
+		const desired = pkg.name === "vendor-src" ? selfCheck : dependencyCheck;
 		if (
-			current === "vendor-src check" ||
-			current?.includes("vendor-src check")
+			current === desired ||
+			current?.includes("vendor-src check") ||
+			current?.includes("postinstall-check.mjs")
 		) {
 			return;
 		}
-		scripts.postinstall = current
-			? `${current} && vendor-src check`
-			: "vendor-src check";
+		scripts.postinstall = current ? `${current} && ${desired}` : desired;
 		pkg.scripts = scripts;
 		yield* fs.writeFileString(file, `${JSON.stringify(pkg, null, "\t")}\n`);
 	});
