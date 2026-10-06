@@ -87,9 +87,12 @@ export const updateAgentsMd = (
 		if (exists) {
 			try {
 				if (lstatSync(file).isSymbolicLink()) {
+					const target = readlinkSync(file);
 					yield* Console.log(
-						`Note: AGENTS.md is a symlink to ${readlinkSync(file)}; writing the vendor-src block through that link.`,
+						`Warning: AGENTS.md is a symlink to ${target}; skipping write to avoid mutating that target.\n` +
+							`Create a real AGENTS.md (rm AGENTS.md && touch AGENTS.md) and re-run, or paste the vendor-src block into ${target} manually.`,
 					);
+					return;
 				}
 			} catch {
 				// ignore race where the file disappears
