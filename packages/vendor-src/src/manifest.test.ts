@@ -25,25 +25,39 @@ const effect: VendoredRepoType = {
 };
 
 describe("decodeManifest", () => {
-	it.effect("defaults $schema and dir and drops legacy top-level ignore", () =>
+	it.effect("defaults $schema and drops legacy top-level ignore", () =>
 		Effect.gen(function* () {
 			const manifest = yield* decodeManifest(
 				JSON.stringify({
+					dir: "vendor",
 					ignore: ["docs/**"],
 					repos: { effect: { ...effect, ignore: ["scratchpad"] } },
 				}),
 			);
 			assert.strictEqual(manifest.$schema, MANIFEST_SCHEMA_URL);
-			assert.strictEqual(manifest.dir, "repos");
+			assert.strictEqual(manifest.dir, "vendor");
 			assert.notProperty(manifest, "ignore");
 			assert.deepStrictEqual(manifest.repos.effect?.ignore, ["scratchpad"]);
+		}),
+	);
+
+	it.effect("requires dir", () =>
+		Effect.gen(function* () {
+			const error = yield* decodeManifest(JSON.stringify({ repos: {} })).pipe(
+				Effect.flip,
+			);
+			assert.include(error.message, "vendor-src.json is invalid");
+			assert.include(error.message, "dir");
 		}),
 	);
 
 	it.effect("fails with the file path when a repo is missing fields", () =>
 		Effect.gen(function* () {
 			const error = yield* decodeManifest(
-				JSON.stringify({ repos: { effect: { package: "effect" } } }),
+				JSON.stringify({
+					dir: ".repos",
+					repos: { effect: { package: "effect" } },
+				}),
 			).pipe(Effect.flip);
 			assert.strictEqual(error._tag, "ManifestError");
 			assert.include(error.message, "vendor-src.json is invalid");
@@ -65,7 +79,7 @@ describe("encodeManifest", () => {
 			const manifest = setRepo(emptyManifest, "effect", effect);
 			const raw = encodeManifest(manifest);
 			assert.isTrue(raw.endsWith("}\n"));
-			assert.include(raw, '\n\t"dir": "repos"');
+			assert.include(raw, '\n\t"dir": ".repos"');
 			assert.deepStrictEqual(yield* decodeManifest(raw), manifest);
 		}),
 	);
@@ -128,6 +142,7 @@ describe("published JSON schema", () => {
 			"utf8",
 		),
 	) as {
+		required: string[];
 		properties: Record<string, unknown>;
 		$defs: {
 			vendoredRepo: { required: string[]; properties: Record<string, unknown> };
@@ -143,6 +158,12 @@ describe("published JSON schema", () => {
 			Object.keys(jsonSchema.$defs.vendoredRepo.properties).toSorted(),
 			Object.keys(VendoredRepo.fields).toSorted(),
 		);
+	});
+
+	it("requires dir and repos at the top level", () => {
+		assert.deepStrictEqual(jsonSchema.required.toSorted(), ["dir", "repos"]);
+		assert.isFalse(Schema.is(Manifest)({ repos: {} }));
+		assert.isTrue(Schema.is(Manifest)(emptyManifest));
 	});
 
 	it("requires the same repo fields as the Effect schema", () => {

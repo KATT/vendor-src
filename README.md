@@ -6,7 +6,7 @@ Inspired by [The One Weird Git Trick That Makes Coding Agents More Effect-ive](h
 
 ## Why
 
-Coding agents are better at exploring source than reading documentation. `node_modules` is usually compiled or ignored, so vendor the upstream git repo under `repos/` at the **same version you have installed**.
+Coding agents are better at exploring source than reading documentation. `node_modules` is usually compiled or ignored, so vendor the upstream git repo under `.repos/` at the **same version you have installed**.
 
 ## Install
 
@@ -32,11 +32,11 @@ Set up vendor-src in this repo:
      (or: npm install -D vendor-src / yarn add -D vendor-src / bun add -d vendor-src)
 2. Ensure the git working tree is clean and has at least one commit.
    Commit the install (package.json / lockfile / catalog) before continuing.
-3. If repos/<name> already exists from a manual subtree (and there is no
+3. If .repos/<name> (or your configured dir) already exists from a manual subtree (and there is no
    vendor-src.json entry), claim it:
    pnpm exec vendor-src adopt <package>
    Or remove and re-add:
-   git rm -rq repos/<name> && git commit -m "Remove repos/<name>"
+   git rm -rq .repos/<name> && git commit -m "Remove .repos/<name>"
 4. Otherwise run: pnpm exec vendor-src add <package>
    Example: pnpm exec vendor-src add effect
    (package must already be installed so the matching git tag can be resolved)
@@ -44,11 +44,11 @@ Set up vendor-src in this repo:
    {dir}/AGENTS.md, .oxfmtrc.json / editor ignores if changed, package.json
    (postinstall), and the subtree commit vendor-src created. Review diffs: do
    not let oxfmt / ignores get wiped.
-6. Never run formatters/linters on the vendor dir (default repos/**). vendor-src
+6. Never run formatters/linters on the vendor dir (default .repos/**). vendor-src
    already writes .oxfmtrc.json ignorePatterns and editor excludes for that dir.
    If you add a new tool, exclude it before the first run.
-7. Prefer reading repos/<name> as read-only reference. Do not import from
-   repos/ — keep importing the normal npm package.
+7. Prefer reading .repos/<name> as read-only reference. Do not import from
+   .repos/ — keep importing the normal npm package.
 8. After dependency upgrades, run: pnpm exec vendor-src check
    If it warns, run: pnpm exec vendor-src sync
 ```
@@ -59,7 +59,7 @@ Set up vendor-src in this repo:
 # Vendor the source for an installed dependency at its matching git tag
 pnpm exec vendor-src add effect
 
-# Claim an existing repos/<name> checkout (manual subtree) without re-fetching
+# Claim an existing .repos/<name> checkout (manual subtree) without re-fetching
 pnpm exec vendor-src adopt effect
 
 # Offline check after installs (exit 0 with a warning on drift)
@@ -79,7 +79,7 @@ Commands work from any directory inside the project. `add`, `adopt`, `sync`, and
 
 `add` / `adopt` also:
 
-- writes `vendor-src.json` (`dir` defaults to `repos` — set another folder if you prefer)
+- creates `vendor-src.json` with `dir` set to `.repos` if it does not exist yet (edit `dir` to use another folder)
 - maintains a short managed section in root `AGENTS.md` (follows symlinks, e.g. to `README.md`)
 - writes `{dir}/AGENTS.md` with fuller guidance for agents working inside that tree
 - writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `{dir}/`
@@ -91,23 +91,23 @@ Commands work from any directory inside the project. `add`, `adopt`, `sync`, and
 
 Vendored trees are large upstream checkouts. A single repo-wide formatter run without excludes can rewrite thousands of files.
 
-`vendor-src add` writes the ignores for you (using the configured `dir`). If you are wiring tooling manually, copy/paste (replace `repos` if you changed `dir`):
+`vendor-src add` writes the ignores for you (using the configured `dir`). If you are wiring tooling manually, copy/paste (replace `.repos` if you changed `dir`):
 
 ```json
 // .oxfmtrc.json
 {
-	"ignorePatterns": ["repos/"]
+	"ignorePatterns": [".repos/"]
 }
 ```
 
 ```jsonc
 // .vscode/settings.json (merge)
 {
-	"typescript.preferences.autoImportFileExcludePatterns": ["repos/**"],
-	"javascript.preferences.autoImportFileExcludePatterns": ["repos/**"],
-	"files.exclude": { "repos/**": true },
-	"files.watcherExclude": { "repos/**": true },
-	"search.exclude": { "repos/**": true },
+	"typescript.preferences.autoImportFileExcludePatterns": [".repos/**"],
+	"javascript.preferences.autoImportFileExcludePatterns": [".repos/**"],
+	"files.exclude": { ".repos/**": true },
+	"files.watcherExclude": { ".repos/**": true },
+	"search.exclude": { ".repos/**": true },
 }
 ```
 
@@ -117,7 +117,7 @@ For Vite+ config (alternative to `.oxfmtrc.json`):
 // vite.config.ts
 export default defineConfig({
 	fmt: {
-		ignorePatterns: ["repos/**"],
+		ignorePatterns: [".repos/**"],
 	},
 });
 ```
@@ -131,7 +131,7 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 ```json
 {
 	"$schema": "https://unpkg.com/vendor-src/schema.json",
-	"dir": "repos",
+	"dir": ".repos",
 	"repos": {
 		"effect": {
 			"package": "effect",
@@ -154,12 +154,12 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 
 ## Manifest
 
-`dir` is the folder for checkouts (default `repos`). AGENTS.md text, oxfmt ignores, and editor excludes all follow this value.
+`dir` is the folder for checkouts and is required. vendor-src writes `.repos` when it creates the manifest; set any other folder name you prefer. AGENTS.md text, oxfmt ignores, and editor excludes all follow this value.
 
 ```json
 {
 	"$schema": "https://unpkg.com/vendor-src/schema.json",
-	"dir": "repos",
+	"dir": ".repos",
 	"repos": {
 		"effect": {
 			"package": "effect",

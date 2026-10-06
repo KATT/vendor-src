@@ -77,7 +77,7 @@ export const OXFMT_CONFIG_FILE = ".oxfmtrc.json";
 /**
  * Ensure Oxfmt's native config excludes the vendor dir via `ignorePatterns`.
  *
- * If the vendor dir is already covered (e.g. `repos/**`), the existing file is
+ * If the vendor dir is already covered (e.g. `.repos/**`), the existing file is
  * returned unchanged so JSONC comments and formatting are preserved.
  */
 export function mergeOxfmtConfig(

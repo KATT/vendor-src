@@ -11,7 +11,7 @@ import {
 const effectRepo = {
 	name: "effect",
 	package: "effect",
-	path: "repos/effect",
+	path: ".repos/effect",
 	version: "4.0.1",
 	ref: "effect@4.0.1",
 };
@@ -42,7 +42,7 @@ describe(renderAgentsBlock, () => {
 	});
 
 	it("explains empty inventory without a packages subtitle", () => {
-		const block = renderAgentsBlock([], "repos");
+		const block = renderAgentsBlock([], ".repos");
 		expect(block).toContain("Nothing is vendored yet");
 		expect(block).not.toContain("### Vendored packages");
 	});
@@ -50,11 +50,11 @@ describe(renderAgentsBlock, () => {
 
 describe(renderVendorDirAgentsMd, () => {
 	it("puts don'ts and checkout list in the vendor dir file", () => {
-		const md = renderVendorDirAgentsMd([effectRepo], "repos");
+		const md = renderVendorDirAgentsMd([effectRepo], ".repos");
 		expect(md).toContain("# Vendored Source");
 		expect(md).toContain("## Don'ts");
 		expect(md).toContain("Don't edit");
-		expect(md).toContain("Don't import from `repos/`");
+		expect(md).toContain("Don't import from `.repos/`");
 		expect(md).toContain("## Vendored packages");
 		expect(md).toContain("- `effect/` — `effect@4.0.1`");
 		expect(md).not.toContain("idiomatic usage");
@@ -65,7 +65,7 @@ describe(renderVendorDirAgentsMd, () => {
 	it("omits redundant ref when it matches package@version", () => {
 		const md = renderVendorDirAgentsMd(
 			[{ ...effectRepo, ref: "v4.0.1" }],
-			"repos",
+			".repos",
 		);
 		expect(md).toContain("- `effect/` — `effect@4.0.1` (ref `v4.0.1`)");
 	});
@@ -73,13 +73,15 @@ describe(renderVendorDirAgentsMd, () => {
 
 describe(upsertAgentsBlock, () => {
 	it("creates a file when none exists", () => {
-		const result = upsertAgentsBlock(undefined, [
-			{ name: "effect", package: "effect", path: "repos/effect" },
-		]);
+		const result = upsertAgentsBlock(
+			undefined,
+			[{ name: "effect", package: "effect", path: ".repos/effect" }],
+			".repos",
+		);
 		expect(result).toContain(AGENTS_START);
 		expect(result).toContain(AGENTS_END);
-		expect(result).toContain("- `effect` → `repos/effect`");
-		expect(result).toContain("repos/AGENTS.md");
+		expect(result).toContain("- `effect` → `.repos/effect`");
+		expect(result).toContain("`.repos/AGENTS.md`");
 	});
 
 	it("replaces an existing managed block", () => {
@@ -91,13 +93,15 @@ old
 
 ## More
 `;
-		const result = upsertAgentsBlock(existing, [
-			{ name: "effect", package: "effect", path: "repos/effect" },
-		]);
+		const result = upsertAgentsBlock(
+			existing,
+			[{ name: "effect", package: "effect", path: ".repos/effect" }],
+			".repos",
+		);
 		expect(result).toContain("# Project");
 		expect(result).toContain("## More");
 		expect(result).not.toContain("old");
-		expect(result).toContain("`repos/effect`");
+		expect(result).toContain("`.repos/effect`");
 	});
 
 	it("does not introduce leading blank lines when the block is the whole file", () => {
@@ -105,14 +109,18 @@ old
 old
 ${AGENTS_END}
 `;
-		const result = upsertAgentsBlock(existing, [
-			{
-				name: "effect",
-				package: "effect",
-				path: "repos/effect",
-				version: "4.0.1",
-			},
-		]);
+		const result = upsertAgentsBlock(
+			existing,
+			[
+				{
+					name: "effect",
+					package: "effect",
+					path: ".repos/effect",
+					version: "4.0.1",
+				},
+			],
+			".repos",
+		);
 		expect(result.startsWith(AGENTS_START)).toBe(true);
 	});
 });
