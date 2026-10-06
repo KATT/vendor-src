@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.5](https://github.com/KATT/vendor-src/compare/0.3.4...0.3.5) (2026-10-06)
+
+### Bug Fixes
+
+- prune untracked safely and drop default ignores ([#11](https://github.com/KATT/vendor-src/issues/11)) ([5e15a3d](https://github.com/KATT/vendor-src/commit/5e15a3d5a23781a87dc205eeff2fa207403657bc)), references [#10](https://github.com/KATT/vendor-src/issues/10)
+
 ## [0.3.4](https://github.com/KATT/vendor-src/compare/0.3.3...0.3.4) (2026-10-06)
 
 ### Bug Fixes
