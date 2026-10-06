@@ -36,7 +36,8 @@
 		"test": "vitest",
 		"format:check": "oxfmt --check",
 		"lint:fix": "oxlint --fix",
-		"typecheck": "tsc"
+		"typecheck": "tsc",
+		"postinstall": "node ./scripts/postinstall-check.mjs"
 	},
 	"lint-staged": {
 		"*": "oxfmt --no-error-on-unmatched-pattern"
