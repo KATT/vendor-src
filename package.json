@@ -31,11 +31,11 @@
 	"scripts": {
 		"build": "tsdown",
 		"format": "oxfmt",
-		"lint": "oxlint",
+		"lint": "oxlint --disable-nested-config --ignore-pattern=repos/**",
 		"prepare": "husky",
 		"test": "vitest",
 		"format:check": "oxfmt --check",
-		"lint:fix": "oxlint --fix",
+		"lint:fix": "oxlint --fix --disable-nested-config --ignore-pattern=repos/**",
 		"typecheck": "tsc",
 		"postinstall": "node ./scripts/postinstall-check.mjs"
 	},

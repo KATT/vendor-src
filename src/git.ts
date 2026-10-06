@@ -77,13 +77,25 @@ export const resolveTag = (url: string, packageName: string, version: string) =>
 		return tag;
 	});
 
+/** Prefer fully-qualified refs so tags like `effect@4.0.1` are not ambiguous. */
+export function toFetchRef(ref: string): string {
+	if (
+		ref.startsWith("refs/") ||
+		/^[0-9a-f]{7,40}$/i.test(ref) ||
+		ref.startsWith("origin/")
+	) {
+		return ref;
+	}
+	return `refs/tags/${ref}`;
+}
+
 export const subtreeAdd = (prefix: string, url: string, ref: string) =>
 	runInherit("subtree add", [
 		"subtree",
 		"add",
 		`--prefix=${prefix}`,
 		url,
-		ref,
+		toFetchRef(ref),
 		"--squash",
 	]);
 
@@ -93,7 +105,7 @@ export const subtreePull = (prefix: string, url: string, ref: string) =>
 		"pull",
 		`--prefix=${prefix}`,
 		url,
-		ref,
+		toFetchRef(ref),
 		"--squash",
 	]);
 
