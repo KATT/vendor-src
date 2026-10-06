@@ -6,3 +6,7 @@
 **/node_modules
 .DS_Store
 **/.DS_Store
+
+# Generated into the publishable package on prepack / release
+/packages/vendor-src/README.md
+/packages/vendor-src/LICENSE.md

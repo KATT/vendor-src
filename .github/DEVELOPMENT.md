@@ -3,6 +3,8 @@
 This is a Vite+ / pnpm monorepo. The publishable CLI lives in `packages/vendor-src`.
 The workspace root dogfoods it (vendored `repos/`, `vendor-src.json`) and intentionally owns the only `postinstall` — the published package has none.
 
+Root `README.md` / `LICENSE.md` are canonical. They are copied into `packages/vendor-src` on `prepack` (and before npm publish) by `scripts/sync-package-docs.mjs` so the npm tarball includes them without maintaining a second copy in git.
+
 After [forking the repo from GitHub](https://help.github.com/articles/fork-a-repo) and [installing pnpm](https://pnpm.io/installation):
 
 ```shell
