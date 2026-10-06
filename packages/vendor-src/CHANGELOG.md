@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0](https://github.com/KATT/vendor-src/compare/0.4.3...0.5.0) (2026-10-06)
+
+### Features
+
+- rebuild vendor-src on idiomatic Effect services ([#19](https://github.com/KATT/vendor-src/issues/19)) ([573e471](https://github.com/KATT/vendor-src/commit/573e4711aa3f9fc3be822ab9802478b09119a8f6))
+
 ## [0.4.3](https://github.com/KATT/vendor-src/compare/0.4.2...0.4.3) (2026-10-06)
 
 ### Bug Fixes
