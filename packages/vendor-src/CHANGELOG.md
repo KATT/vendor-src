@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0](https://github.com/KATT/vendor-src/compare/0.5.0...0.6.0) (2026-10-06)
+
+### Features
+
+- bootstrap vendor dir as .repos and require dir in vendor-src.json ([#22](https://github.com/KATT/vendor-src/issues/22)) ([69dc6fe](https://github.com/KATT/vendor-src/commit/69dc6fe34228905d63df58853c0f33f7f0bd62a1)), references [#23](https://github.com/KATT/vendor-src/issues/23)
+
 ## [0.5.0](https://github.com/KATT/vendor-src/compare/0.4.3...0.5.0) (2026-10-06)
 
 ### Features
