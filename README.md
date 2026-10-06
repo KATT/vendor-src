@@ -131,6 +131,8 @@ export default defineConfig({
 
 There are **no default ignore patterns**. After each subtree add/pull (and on `sync` even when already current), vendor-src **deletes** only paths matching globs you configure per repo in `vendor-src.json` or via `--ignore` on `add`.
 
+Since **0.3.4**, ignore entries are **globs** (not regexes). If you upgraded from an older release, rewrite patterns like `(^|/)scratchpad(/|$)` to `scratchpad/**`. `vendor-src check` warns when a pattern still looks like the old regex form.
+
 Patterns match posix paths relative to that repo root; a trailing `/**` also matches the directory itself:
 
 ```json

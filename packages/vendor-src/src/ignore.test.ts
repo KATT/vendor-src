@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
 	DEFAULT_IGNORE,
 	findIgnoredPaths,
+	isLegacyRegexIgnorePattern,
 	matchesIgnore,
 	compileIgnorePatterns,
 	resolveIgnorePatterns,
@@ -30,6 +31,13 @@ describe(matchesIgnore, () => {
 		expect(matchesIgnore("repos/effect", compileIgnorePatterns([]))).toBe(
 			false,
 		);
+	});
+});
+
+describe(isLegacyRegexIgnorePattern, () => {
+	it("flags pre-0.3.4 regex-style ignore strings", () => {
+		expect(isLegacyRegexIgnorePattern("(^|/)scratchpad(/|$)")).toBe(true);
+		expect(isLegacyRegexIgnorePattern("scratchpad/**")).toBe(false);
 	});
 });
 
