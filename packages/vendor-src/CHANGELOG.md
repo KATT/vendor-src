@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0](https://github.com/KATT/vendor-src/compare/0.3.7...0.4.0) (2026-10-06)
+
+### Features
+
+- concise AGENTS.md + contextual {dir}/AGENTS.md ([#14](https://github.com/KATT/vendor-src/issues/14)) ([f5ee29b](https://github.com/KATT/vendor-src/commit/f5ee29b3f134e2963d965597e3713d30ef1071b6))
+
 ## [0.3.7](https://github.com/KATT/vendor-src/compare/0.3.6...0.3.7) (2026-10-06)
 
 ### Bug Fixes
