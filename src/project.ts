@@ -1,7 +1,11 @@
 import { Effect, FileSystem, Path } from "effect";
 
 import { upsertAgentsBlock, type AgentsRepoLine } from "./agentsMd.ts";
-import { mergeIgnoreFile, mergeVsCodeSettings } from "./editorConfig.ts";
+import {
+	mergeToolingIgnoreFiles,
+	mergeVsCodeSettings,
+	TOOLING_IGNORE_FILES,
+} from "./editorConfig.ts";
 import {
 	emptyManifest,
 	MANIFEST_FILENAME,
@@ -73,7 +77,10 @@ export const updateAgentsMd = (
 				path: `${manifest.dir}/${name}`,
 			}),
 		);
-		yield* fs.writeFileString(file, upsertAgentsBlock(existing, repos));
+		yield* fs.writeFileString(
+			file,
+			upsertAgentsBlock(existing, repos, manifest.dir),
+		);
 	});
 
 export const updateEditorIgnores = (projectRoot: string, dir: string) =>
@@ -81,12 +88,19 @@ export const updateEditorIgnores = (projectRoot: string, dir: string) =>
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 
-		const ignorePath = path.join(projectRoot, ".ignore");
-		const ignoreExists = yield* fs.exists(ignorePath);
-		const ignoreExisting = ignoreExists
-			? yield* fs.readFileString(ignorePath)
-			: undefined;
-		yield* fs.writeFileString(ignorePath, mergeIgnoreFile(ignoreExisting, dir));
+		const existing: Partial<
+			Record<(typeof TOOLING_IGNORE_FILES)[number], string>
+		> = {};
+		for (const file of TOOLING_IGNORE_FILES) {
+			const fullPath = path.join(projectRoot, file);
+			if (yield* fs.exists(fullPath)) {
+				existing[file] = yield* fs.readFileString(fullPath);
+			}
+		}
+		const merged = mergeToolingIgnoreFiles(existing, dir);
+		for (const file of TOOLING_IGNORE_FILES) {
+			yield* fs.writeFileString(path.join(projectRoot, file), merged[file]);
+		}
 
 		const vscodeDir = path.join(projectRoot, ".vscode");
 		yield* fs.makeDirectory(vscodeDir, { recursive: true });

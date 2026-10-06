@@ -5,7 +5,7 @@ export function mergeIgnoreFile(
 	const pattern = `${dir.replace(/\/$/, "")}/`;
 	const lines = existing ? existing.split("\n") : [];
 	if (lines.some((line) => line.trim() === pattern || line.trim() === dir)) {
-		return existing ?? `${pattern}\n`;
+		return existing?.endsWith("\n") ? existing : `${existing ?? pattern}\n`;
 	}
 	const body = lines.join("\n").replace(/\s*$/, "");
 	return body.length > 0 ? `${body}\n${pattern}\n` : `${pattern}\n`;
@@ -52,6 +52,30 @@ export function mergeVsCodeSettings(
 
 	return `${JSON.stringify(settings, null, "\t")}\n`;
 }
+
+/**
+ * Merge `repos/` (or custom dir) into ignore files used by common formatters
+ * and linters. Oxfmt/Vite+ fmt read `.prettierignore` by default.
+ */
+export function mergeToolingIgnoreFiles(
+	existing: Partial<Record<ToolingIgnoreFile, string | undefined>>,
+	dir: string,
+): Record<ToolingIgnoreFile, string> {
+	const pattern = `${dir.replace(/\/$/, "")}/`;
+	const result = {} as Record<ToolingIgnoreFile, string>;
+	for (const file of TOOLING_IGNORE_FILES) {
+		result[file] = mergeIgnoreFile(existing[file], pattern);
+	}
+	return result;
+}
+
+export const TOOLING_IGNORE_FILES = [
+	".prettierignore",
+	".eslintignore",
+	".ignore",
+] as const;
+
+export type ToolingIgnoreFile = (typeof TOOLING_IGNORE_FILES)[number];
 
 function mergeStringArray(value: unknown, item: string): string[] {
 	const current = Array.isArray(value)

@@ -14,6 +14,23 @@ Coding agents are better at exploring source than reading documentation. `node_m
 pnpm add -D vendor-src
 ```
 
+## Quick start (copy/paste for agents)
+
+Paste this into your coding agent after installing:
+
+```text
+Install is done. Now set up vendor-src for this repo:
+
+1. Ensure the git working tree is clean and has at least one commit.
+2. Run: pnpm exec vendor-src add <package>
+   Example: pnpm exec vendor-src add effect
+3. Commit the resulting vendor-src.json, AGENTS.md, .prettierignore, .eslintignore, .ignore, .vscode/settings.json, and the subtree commit vendor-src created.
+4. Never run formatters/linters on repos/**. vendor-src already writes ignore files for Prettier/Oxfmt/ESLint and editor excludes. If you add a new tool, exclude repos/** before the first run.
+5. Prefer reading repos/<name> as read-only reference. Do not import from repos/ — keep importing the normal npm package.
+6. After dependency upgrades, run: pnpm exec vendor-src check
+   If it warns, run: pnpm exec vendor-src sync
+```
+
 ## Usage
 
 ```shell
@@ -26,7 +43,7 @@ pnpm exec vendor-src check
 # Fail CI when vendored sources are stale
 pnpm exec vendor-src check --strict
 
-# Pull drifted repos to the tags matching currently installed versions
+# Pull drifted repos to the git tags matching currently installed versions
 pnpm exec vendor-src sync
 
 pnpm exec vendor-src list
@@ -36,13 +53,47 @@ pnpm exec vendor-src remove effect
 `add` also:
 
 - writes `vendor-src.json`
-- maintains a managed section in `AGENTS.md`
-- merges editor excludes into `.vscode/settings.json` and `.ignore`
+- maintains a managed section in `AGENTS.md` (including “do not format/lint `repos/`”)
+- merges `repos/` into `.prettierignore`, `.eslintignore`, and `.ignore` (Oxfmt/Vite+ fmt read `.prettierignore` by default)
+- merges editor excludes into `.vscode/settings.json`
 - adds a `postinstall` script that runs `vendor-src check`
 
-## Ignore patterns
+## Protecting `repos/` from tooling
 
-By default, after each subtree add/pull, vendor-src prunes paths matching:
+Vendored trees are large upstream checkouts. A single repo-wide `oxfmt` / Prettier / ESLint run without excludes can rewrite thousands of files.
+
+`vendor-src add` writes the ignores for you. If you are wiring tooling manually, copy/paste:
+
+```gitignore
+# .prettierignore, .eslintignore, and/or .ignore
+repos/
+```
+
+```jsonc
+// .vscode/settings.json (merge)
+{
+	"typescript.preferences.autoImportFileExcludePatterns": ["repos/**"],
+	"javascript.preferences.autoImportFileExcludePatterns": ["repos/**"],
+	"files.exclude": { "repos/**": true },
+	"files.watcherExclude": { "repos/**": true },
+	"search.exclude": { "repos/**": true },
+}
+```
+
+For Vite+ / Oxfmt config:
+
+```ts
+// vite.config.ts
+export default defineConfig({
+	fmt: {
+		ignorePatterns: ["repos/**"],
+	},
+});
+```
+
+## Ignore patterns (subtree pruning)
+
+By default, after each subtree add/pull, vendor-src also **deletes** matching paths inside the vendored tree and commits that prune:
 
 - `.DS_Store`
 - nested `repos/`

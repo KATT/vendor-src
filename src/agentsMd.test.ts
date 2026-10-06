@@ -11,6 +11,8 @@ describe(upsertAgentsBlock, () => {
 		expect(result).toContain(AGENTS_END);
 		expect(result).toContain("`repos/effect`");
 		expect(result).toContain("`effect`");
+		expect(result).toContain("Keep tooling out of vendored trees");
+		expect(result).toContain("never");
 	});
 
 	it("replaces an existing managed block", () => {

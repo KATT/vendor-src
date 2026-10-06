@@ -7,22 +7,37 @@ export interface AgentsRepoLine {
 	path: string;
 }
 
-export function renderAgentsBlock(repos: AgentsRepoLine[]): string {
+export function renderAgentsBlock(
+	repos: AgentsRepoLine[],
+	dir = "repos",
+): string {
+	const root = dir.replace(/\/$/, "");
 	const lines = [
 		AGENTS_START,
 		"## Vendored Repositories",
 		"",
-		"This project vendors external repositories under `repos/`.",
+		`This project vendors external repositories under \`${root}/\`.`,
 		"",
-		"- Use vendored repositories as read-only reference material when working with related libraries",
+		"### How to use them",
+		"",
+		"- Use vendored repositories as **read-only reference material** when working with related libraries",
 		"- Prefer examples and patterns from the vendored source code over generated guesses or web search results",
-		"- Do not edit files under `repos/` unless explicitly asked",
-		"- Do not import from `repos/` — application code should continue importing from normal package dependencies",
+		`- Do not edit files under \`${root}/\` unless explicitly asked`,
+		`- Do not import from \`${root}/\` — application code should continue importing from normal package dependencies`,
+		"",
+		"### Keep tooling out of vendored trees",
+		"",
+		`Formatters and linters must **never** rewrite \`${root}/\`. Running oxfmt/Prettier/ESLint/Vite+ fmt across the repo without excludes will churn thousands of upstream files.`,
+		"",
+		"- Do not run format/lint/fix commands that include this directory",
+		`- Prefer project scripts that already exclude \`${root}/\` (see \`.prettierignore\`, \`.ignore\`, and editor settings)`,
+		`- If you add a new formatter or linter, exclude \`${root}/**\` before the first run`,
+		`- After vendoring updates, only commit intentional \`vendor-src\` metadata changes plus the subtree commit — never mass-format upstream sources`,
 		"",
 	];
 
 	if (repos.length > 0) {
-		lines.push("Vendored sources:");
+		lines.push("### Vendored sources");
 		lines.push("");
 		for (const repo of repos) {
 			lines.push(
@@ -40,8 +55,9 @@ export function renderAgentsBlock(repos: AgentsRepoLine[]): string {
 export function upsertAgentsBlock(
 	existing: string | undefined,
 	repos: AgentsRepoLine[],
+	dir = "repos",
 ): string {
-	const block = renderAgentsBlock(repos);
+	const block = renderAgentsBlock(repos, dir);
 	if (!existing || existing.trim().length === 0) {
 		return `${block}\n`;
 	}
