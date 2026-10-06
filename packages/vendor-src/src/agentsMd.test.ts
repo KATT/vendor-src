@@ -8,8 +8,16 @@ import {
 	upsertAgentsBlock,
 } from "./agentsMd.ts";
 
+const effectRepo = {
+	name: "effect",
+	package: "effect",
+	path: "repos/effect",
+	version: "4.0.1",
+	ref: "effect@4.0.1",
+};
+
 describe(renderAgentsBlock, () => {
-	it("lists packages and uses blog-style guidance", () => {
+	it("keeps usage + inventory at root; no repeated per-package hints", () => {
 		const block = renderAgentsBlock(
 			[
 				{
@@ -22,36 +30,44 @@ describe(renderAgentsBlock, () => {
 			"vendor",
 		);
 		expect(block).toContain(AGENTS_START);
-		expect(block).toContain("## Vendored Repositories");
+		expect(block).toContain("## Vendored Source");
+		expect(block).toContain("### Vendored packages");
 		expect(block).toContain("`vendor/AGENTS.md`");
-		expect(block).toContain("read-only reference material");
-		expect(block).toContain(
-			"`effect@4.0.1` → `vendor/effect` — idiomatic usage, tests, module structure, and API design",
-		);
-		expect(block).not.toContain("Keep tooling out of vendored trees");
+		expect(block).toContain("- `effect@4.0.1` → `vendor/effect`");
+		expect(block).not.toContain("idiomatic usage");
+		expect(block).not.toContain("Don't edit");
+		expect(block).not.toContain("Don't import");
+		// blank line before the package list
+		expect(block).toMatch(/### Vendored packages\n\n- /);
+	});
+
+	it("explains empty inventory without a packages subtitle", () => {
+		const block = renderAgentsBlock([], "repos");
+		expect(block).toContain("Nothing is vendored yet");
+		expect(block).not.toContain("### Vendored packages");
 	});
 });
 
 describe(renderVendorDirAgentsMd, () => {
-	it("documents checkouts for the configured dir", () => {
+	it("puts don'ts and checkout list in the vendor dir file", () => {
+		const md = renderVendorDirAgentsMd([effectRepo], "repos");
+		expect(md).toContain("# Vendored Source");
+		expect(md).toContain("## Don'ts");
+		expect(md).toContain("Don't edit");
+		expect(md).toContain("Don't import from `repos/`");
+		expect(md).toContain("## Vendored packages");
+		expect(md).toContain("- `effect/` — `effect@4.0.1`");
+		expect(md).not.toContain("idiomatic usage");
+		expect(md).not.toMatch(/tag `/);
+		expect(md).toContain("vendor-src.json");
+	});
+
+	it("omits redundant ref when it matches package@version", () => {
 		const md = renderVendorDirAgentsMd(
-			[
-				{
-					name: "effect",
-					package: "effect",
-					path: "repos/effect",
-					version: "4.0.1",
-					ref: "effect@4.0.1",
-				},
-			],
+			[{ ...effectRepo, ref: "v4.0.1" }],
 			"repos",
 		);
-		expect(md).toContain("# Vendored repositories");
-		expect(md).toContain("`repos/`");
-		expect(md).toContain(
-			"`effect/` (`effect@4.0.1`, tag `effect@4.0.1`) — inspect for idiomatic usage",
-		);
-		expect(md).toContain("vendor-src.json");
+		expect(md).toContain("- `effect/` — `effect@4.0.1` (ref `v4.0.1`)");
 	});
 });
 
@@ -62,10 +78,8 @@ describe(upsertAgentsBlock, () => {
 		]);
 		expect(result).toContain(AGENTS_START);
 		expect(result).toContain(AGENTS_END);
-		expect(result).toContain("`repos/effect`");
-		expect(result).toContain("`effect`");
+		expect(result).toContain("- `effect` → `repos/effect`");
 		expect(result).toContain("repos/AGENTS.md");
-		expect(result).toMatch(/`effect` → `repos\/effect`/);
 	});
 
 	it("replaces an existing managed block", () => {
@@ -84,5 +98,21 @@ old
 		expect(result).toContain("## More");
 		expect(result).not.toContain("old");
 		expect(result).toContain("`repos/effect`");
+	});
+
+	it("does not introduce leading blank lines when the block is the whole file", () => {
+		const existing = `${AGENTS_START}
+old
+${AGENTS_END}
+`;
+		const result = upsertAgentsBlock(existing, [
+			{
+				name: "effect",
+				package: "effect",
+				path: "repos/effect",
+				version: "4.0.1",
+			},
+		]);
+		expect(result.startsWith(AGENTS_START)).toBe(true);
 	});
 });

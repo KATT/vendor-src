@@ -1,14 +1,11 @@
 <!-- vendor-src:start -->
 
-## Vendored Repositories
+## Vendored Source
 
-This project vendors external repositories under `repos/` (see `repos/AGENTS.md`).
+Source for this project's key dependencies is vendored under `repos/`, pinned to the installed versions. When a question is about how one of these libraries actually behaves, read its vendored source — implementation, tests, examples — instead of relying on docs, memory, or web search. The trees are read-only reference material; see `repos/AGENTS.md` before touching or citing them.
 
-- Use vendored repositories as **read-only reference material** when working with related libraries
-- Prefer examples and patterns from the vendored source over generated guesses or web search results
-- Do not edit files under `repos/` unless explicitly asked
-- Do not import from `repos/` — application code should continue importing from normal package dependencies
+### Vendored packages
 
-- `effect@4.0.1` → `repos/effect` — idiomatic usage, tests, module structure, and API design
+- `effect@4.0.1` → `repos/effect`
 
 <!-- vendor-src:end -->

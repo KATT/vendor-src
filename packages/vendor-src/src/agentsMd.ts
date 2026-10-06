@@ -13,35 +13,40 @@ function normalizeDir(dir: string): string {
 	return dir.replace(/\/$/, "") || "repos";
 }
 
+function packageSpec(repo: AgentsRepoLine): string {
+	return repo.version ? `${repo.package}@${repo.version}` : repo.package;
+}
+
+function refSuffix(repo: AgentsRepoLine): string {
+	const spec = packageSpec(repo);
+	return repo.ref && repo.ref !== spec ? ` (ref \`${repo.ref}\`)` : "";
+}
+
 /**
  * Concise managed block for the project-root AGENTS.md.
- * Wording adapted from the Effect blog on vendoring source for coding agents.
- * Always lists packages so agents need not grep the tree.
+ * Usage intent + package inventory; don'ts live in `{dir}/AGENTS.md`.
  */
 export function renderAgentsBlock(
 	repos: AgentsRepoLine[],
 	dir = "repos",
 ): string {
 	const root = normalizeDir(dir);
-	const lines = [
-		AGENTS_START,
-		"## Vendored Repositories",
-		"",
-		`This project vendors external repositories under \`${root}/\` (see \`${root}/AGENTS.md\`).`,
-		"",
-		"- Use vendored repositories as **read-only reference material** when working with related libraries",
-		"- Prefer examples and patterns from the vendored source over generated guesses or web search results",
-		`- Do not edit files under \`${root}/\` unless explicitly asked`,
-		`- Do not import from \`${root}/\` — application code should continue importing from normal package dependencies`,
-		"",
-	];
+	const lines = [AGENTS_START, "", "## Vendored Source", ""];
 
-	if (repos.length > 0) {
+	if (repos.length === 0) {
+		lines.push(
+			`Dependency source is vendored under \`${root}/\` as read-only reference material for coding agents, pinned to the installed versions. Nothing is vendored yet — run \`vendor-src add <package>\`. See \`${root}/AGENTS.md\`.`,
+			"",
+		);
+	} else {
+		lines.push(
+			`Source for this project's key dependencies is vendored under \`${root}/\`, pinned to the installed versions. When a question is about how one of these libraries actually behaves, read its vendored source — implementation, tests, examples — instead of relying on docs, memory, or web search. The trees are read-only reference material; see \`${root}/AGENTS.md\` before touching or citing them.`,
+			"",
+			"### Vendored packages",
+			"",
+		);
 		for (const repo of repos) {
-			const version = repo.version ? `@${repo.version}` : "";
-			lines.push(
-				`- \`${repo.package}${version}\` → \`${repo.path}\` — idiomatic usage, tests, module structure, and API design`,
-			);
+			lines.push(`- \`${packageSpec(repo)}\` → \`${repo.path}\``);
 		}
 		lines.push("");
 	}
@@ -57,42 +62,40 @@ export function renderVendorDirAgentsMd(
 ): string {
 	const root = normalizeDir(dir);
 	const lines = [
-		"# Vendored repositories",
+		"# Vendored Source",
 		"",
-		`This directory (\`${root}/\`) holds git-subtree checkouts of dependencies, managed by [vendor-src](https://www.npmjs.com/package/vendor-src) and pinned to the versions installed in this project.`,
+		`This directory holds git-subtree checkouts of dependency source, pinned to the versions this project installs and managed by [vendor-src](https://www.npmjs.com/package/vendor-src). Configuration lives in \`vendor-src.json\` (\`dir\` is \`${root}\`).`,
 		"",
-		"Coding agents are better at exploring source than reading documentation. Prefer these trees over docs or `node_modules` when learning how a library is meant to be used.",
+		"Coding agents are better at reading source than at reading documentation. For anything about how a vendored library is meant to be used, this tree is the primary reference — above docs, above training memory, above search results.",
 		"",
-		"## How to use",
+		"## How to use it",
 		"",
-		"- Treat everything here as **read-only reference material**",
-		"- Prefer examples and patterns from this source over generated guesses or web search results",
-		"- Do not format, lint-fix, or mass-edit these trees",
-		"- Do not import application code from these paths — keep importing the normal npm packages",
-		`- Config: \`vendor-src.json\` (\`dir\` defaults to \`repos\`; this tree uses \`${root}\`)`,
+		"- Prefer a pattern you can point to in this tree over one you recall or infer",
+		"- Start from the package's own README, then its source and tests for intended usage",
+		"- If a version here disagrees with the installed package, run `vendor-src check` / `vendor-src sync` rather than reasoning from a stale tree",
+		"",
+		"## Don'ts",
+		"",
+		`- **Don't edit** anything under \`${root}/\`. It is reference, not project code, and \`vendor-src sync\` overwrites local changes`,
+		`- **Don't format, lint-fix, or codemod** these trees — exclude them from repo-wide autofix runs`,
+		`- **Don't import from \`${root}/\`** — application code keeps importing the installed npm packages`,
+		"- **Don't commit upstream-style fixes here** — patch the real dependency or open a PR upstream",
+		"",
+		"## Vendored packages",
 		"",
 	];
 
-	if (repos.length > 0) {
-		lines.push("## Checkouts");
-		lines.push("");
+	if (repos.length === 0) {
+		lines.push("_None yet. Run `vendor-src add <package>`._");
+	} else {
 		for (const repo of repos) {
-			const pin =
-				repo.version !== undefined
-					? repo.ref
-						? ` (\`${repo.package}@${repo.version}\`, tag \`${repo.ref}\`)`
-						: ` (\`${repo.package}@${repo.version}\`)`
-					: ` (\`${repo.package}\`)`;
 			lines.push(
-				`- \`${repo.name}/\`${pin} — inspect for idiomatic usage, tests, module structure, and API design`,
+				`- \`${repo.name}/\` — \`${packageSpec(repo)}\`${refSuffix(repo)}`,
 			);
 		}
-		lines.push("");
-	} else {
-		lines.push("_No packages vendored yet. Run `vendor-src add <package>`._");
-		lines.push("");
 	}
 
+	lines.push("");
 	lines.push("<!-- Generated by vendor-src; do not edit by hand. -->");
 	lines.push("");
 	return lines.join("\n");
@@ -112,7 +115,8 @@ export function upsertAgentsBlock(
 	const start = existing.indexOf(AGENTS_START);
 	const end = existing.indexOf(AGENTS_END);
 	if (start !== -1 && end !== -1 && end > start) {
-		const before = existing.slice(0, start).replace(/\s*$/, "\n\n");
+		const before =
+			start === 0 ? "" : existing.slice(0, start).replace(/\s*$/, "\n\n");
 		const after = existing.slice(end + AGENTS_END.length).replace(/^\s*/, "\n");
 		return `${before}${block}${after}`.replace(/\n{3,}/g, "\n\n");
 	}
