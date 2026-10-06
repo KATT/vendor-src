@@ -53,7 +53,7 @@
 				},
 				"ignore": {
 					"type": "array",
-					"description": "Extra globs matched against paths relative to this vendored repo root (posix). Defaults always prune **/.DS_Store, **/repos/**, **/node_modules/**, and **/.git/**. A pattern ending in /** also matches the directory itself.",
+					"description": "Globs matched against paths relative to this vendored repo root (posix). There are no built-in defaults — only these patterns (and --ignore on add) are pruned. A pattern ending in /** also matches the directory itself.",
 					"items": {
 						"type": "string",
 						"minLength": 1

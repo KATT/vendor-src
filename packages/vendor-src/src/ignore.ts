@@ -3,13 +3,11 @@ import { join, relative, sep } from "node:path";
 
 import picomatch from "picomatch";
 
-/** Default ignore globs applied to every vendored repo (posix paths). */
-export const DEFAULT_IGNORE: readonly string[] = [
-	"**/.DS_Store",
-	"**/repos/**",
-	"**/node_modules/**",
-	"**/.git/**",
-];
+/**
+ * No built-in ignore globs — only patterns from `vendor-src.json` / `--ignore`
+ * are pruned.
+ */
+export const DEFAULT_IGNORE: readonly string[] = [];
 
 export type IgnoreMatcher = (relativePath: string) => boolean;
 
@@ -86,10 +84,6 @@ export function resolveIgnorePatterns(options: {
 	cliIgnore?: readonly string[];
 }): string[] {
 	return [
-		...new Set([
-			...DEFAULT_IGNORE,
-			...(options.repoIgnore ?? []),
-			...(options.cliIgnore ?? []),
-		]),
+		...new Set([...(options.repoIgnore ?? []), ...(options.cliIgnore ?? [])]),
 	];
 }

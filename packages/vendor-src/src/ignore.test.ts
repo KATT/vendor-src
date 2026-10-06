@@ -12,41 +12,39 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 describe(matchesIgnore, () => {
-	const patterns = compileIgnorePatterns(DEFAULT_IGNORE);
-
-	it("matches nested repos directories", () => {
-		expect(matchesIgnore("repos/effect", patterns)).toBe(true);
-		expect(matchesIgnore("packages/foo/repos/bar", patterns)).toBe(true);
-		expect(matchesIgnore("repos", patterns)).toBe(true);
-	});
-
-	it("matches .DS_Store", () => {
-		expect(matchesIgnore(".DS_Store", patterns)).toBe(true);
-		expect(matchesIgnore("src/.DS_Store", patterns)).toBe(true);
-	});
-
-	it("does not match normal source", () => {
-		expect(matchesIgnore("packages/effect/src/index.ts", patterns)).toBe(false);
-	});
-
 	it("matches user globs including directory/**", () => {
-		const custom = compileIgnorePatterns(["scratchpad", "docs/**"]);
+		const custom = compileIgnorePatterns([
+			"scratchpad",
+			"docs/**",
+			"**/.DS_Store",
+		]);
 		expect(matchesIgnore("scratchpad", custom)).toBe(true);
 		expect(matchesIgnore("docs", custom)).toBe(true);
 		expect(matchesIgnore("docs/guide.md", custom)).toBe(true);
 		expect(matchesIgnore("src/docs", custom)).toBe(false);
+		expect(matchesIgnore(".DS_Store", custom)).toBe(true);
+		expect(matchesIgnore("src/.DS_Store", custom)).toBe(true);
+	});
+
+	it("does not match when no patterns are configured", () => {
+		expect(matchesIgnore("repos/effect", compileIgnorePatterns([]))).toBe(
+			false,
+		);
 	});
 });
 
 describe(resolveIgnorePatterns, () => {
-	it("merges defaults with per-repo and CLI overrides", () => {
+	it("has no built-in defaults", () => {
+		expect(DEFAULT_IGNORE).toEqual([]);
+		expect(resolveIgnorePatterns({})).toEqual([]);
+	});
+
+	it("merges per-repo and CLI overrides only", () => {
 		const patterns = resolveIgnorePatterns({
 			repoIgnore: ["docs"],
 			cliIgnore: ["scratchpad/**"],
 		});
-		expect(patterns).toContain("**/repos/**");
-		expect(patterns).toContain("docs");
-		expect(patterns).toContain("scratchpad/**");
+		expect(patterns).toEqual(["docs", "scratchpad/**"]);
 	});
 });
 
@@ -56,12 +54,15 @@ describe(findIgnoredPaths, () => {
 		mkdirSync(join(root, "repos", "nested"), { recursive: true });
 		writeFileSync(join(root, "repos", "nested", "x.ts"), "export {}");
 		writeFileSync(join(root, ".DS_Store"), "");
+		mkdirSync(join(root, "scratchpad"));
+		writeFileSync(join(root, "scratchpad", "tmp.ts"), "export {}");
 		mkdirSync(join(root, "src"));
 		writeFileSync(join(root, "src", "ok.ts"), "export {}");
 
-		expect(findIgnoredPaths(root, [...DEFAULT_IGNORE])).toEqual([
+		expect(findIgnoredPaths(root, [])).toEqual([]);
+		expect(findIgnoredPaths(root, ["scratchpad/**", "**/.DS_Store"])).toEqual([
 			".DS_Store",
-			"repos",
+			"scratchpad",
 		]);
 	});
 });
