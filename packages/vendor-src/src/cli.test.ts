@@ -55,10 +55,10 @@ describe("vendor-src CLI", () => {
 			yield* vendorSrc(cwd, "add", "lib", "--ignore", "docs/**");
 
 			assert.strictEqual(
-				yield* readFile(project, "repos", "lib", "src", "index.ts"),
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
 				"export const version = 1\n",
 			);
-			assert.isFalse(yield* exists(project, "repos", "lib", "docs"));
+			assert.isFalse(yield* exists(project, ".repos", "lib", "docs"));
 			const added = yield* decodeManifest(
 				yield* readFile(project, "vendor-src.json"),
 			);
@@ -72,7 +72,7 @@ describe("vendor-src CLI", () => {
 				},
 			});
 			assert.include(yield* readFile(project, "AGENTS.md"), "`lib@1.0.0`");
-			assert.include(yield* readFile(project, ".oxfmtrc.json"), "repos/");
+			assert.include(yield* readFile(project, ".oxfmtrc.json"), '".repos/"');
 			assert.include(
 				yield* readFile(project, "package.json"),
 				'"postinstall": "vendor-src check"',
@@ -100,10 +100,10 @@ describe("vendor-src CLI", () => {
 
 			yield* vendorSrc(cwd, "sync");
 			assert.strictEqual(
-				yield* readFile(project, "repos", "lib", "src", "index.ts"),
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
 				"export const version = 2\n",
 			);
-			assert.isFalse(yield* exists(project, "repos", "lib", "docs"));
+			assert.isFalse(yield* exists(project, ".repos", "lib", "docs"));
 			const synced = yield* decodeManifest(
 				yield* readFile(project, "vendor-src.json"),
 			);
@@ -113,7 +113,7 @@ describe("vendor-src CLI", () => {
 			git(project, "commit", "-qm", "sync lib");
 
 			yield* vendorSrc(cwd, "remove", "lib");
-			assert.isFalse(yield* exists(project, "repos", "lib"));
+			assert.isFalse(yield* exists(project, ".repos", "lib"));
 			const removed = yield* decodeManifest(
 				yield* readFile(project, "vendor-src.json"),
 			);

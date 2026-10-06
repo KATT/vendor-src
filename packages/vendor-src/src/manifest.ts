@@ -5,7 +5,8 @@ export const MANIFEST_FILENAME = "vendor-src.json";
 /** Published schema URL for `$schema` in vendor-src.json (resolves via package export). */
 export const MANIFEST_SCHEMA_URL = "https://unpkg.com/vendor-src/schema.json";
 
-export const DEFAULT_DIR = "repos";
+/** Vendor dir written into a freshly bootstrapped vendor-src.json. */
+export const DEFAULT_DIR = ".repos";
 
 export const VendoredRepo = Schema.Struct({
 	package: Schema.NonEmptyString,
@@ -21,9 +22,7 @@ export const Manifest = Schema.Struct({
 	$schema: Schema.String.pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed(MANIFEST_SCHEMA_URL)),
 	),
-	dir: Schema.NonEmptyString.pipe(
-		Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_DIR)),
-	),
+	dir: Schema.NonEmptyString,
 	repos: Schema.Record(Schema.String, VendoredRepo),
 });
 export type Manifest = typeof Manifest.Type;
@@ -63,11 +62,11 @@ export const emptyManifest: Manifest = {
 	repos: {},
 };
 
-/** The vendor directory without trailing slashes, e.g. `repos`. */
+/** The vendor directory without trailing slashes, e.g. `.repos`. */
 export const vendorDir = (manifest: Manifest): string =>
 	manifest.dir.replace(/\/+$/, "") || DEFAULT_DIR;
 
-/** Project-relative path of a vendored checkout, e.g. `repos/effect`. */
+/** Project-relative path of a vendored checkout, e.g. `.repos/effect`. */
 export const repoPrefix = (manifest: Manifest, name: string): string =>
 	`${vendorDir(manifest)}/${name}`;
 

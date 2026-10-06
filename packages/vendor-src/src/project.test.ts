@@ -103,11 +103,11 @@ describe("Project.writeAgentsMd", () => {
 				const readme = yield* readFile(root, "README.md");
 				assert.include(readme, "# Toy projects");
 				assert.include(readme, "<!-- vendor-src:start -->");
-				assert.include(readme, "- `effect@4.0.1` → `repos/effect`");
+				assert.include(readme, "- `effect@4.0.1` → `.repos/effect`");
 				assert.include(readme, "### Vendored packages");
 				assert.include(readme, "<!-- vendor-src:end -->");
 
-				const vendorAgents = yield* readFile(root, "repos", "AGENTS.md");
+				const vendorAgents = yield* readFile(root, ".repos", "AGENTS.md");
 				assert.include(vendorAgents, "## Don'ts");
 				assert.include(vendorAgents, "`effect@4.0.1`");
 			}).pipe(Effect.provide(NodeServices.layer)),
@@ -141,13 +141,13 @@ describe("Project.writeEditorIgnores", () => {
 				);
 				assert.strictEqual(
 					yield* readFile(root, ".prettierignore"),
-					"coverage/\nrepos/\n",
+					"coverage/\n.repos/\n",
 				);
 				assert.isFalse(yield* exists(root, ".eslintignore"));
-				assert.include(yield* readFile(root, ".oxfmtrc.json"), '"repos/"');
+				assert.include(yield* readFile(root, ".oxfmtrc.json"), '".repos/"');
 				assert.include(
 					yield* readFile(root, ".vscode", "settings.json"),
-					'"repos/**": true',
+					'".repos/**": true',
 				);
 			}).pipe(Effect.provide(NodeServices.layer)),
 	);

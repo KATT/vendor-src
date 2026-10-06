@@ -10,7 +10,7 @@ export interface AgentsRepoLine {
 }
 
 function normalizeDir(dir: string): string {
-	return dir.replace(/\/$/, "") || "repos";
+	return dir.replace(/\/+$/, "");
 }
 
 function packageSpec(repo: AgentsRepoLine): string {
@@ -28,7 +28,7 @@ function refSuffix(repo: AgentsRepoLine): string {
  */
 export function renderAgentsBlock(
 	repos: AgentsRepoLine[],
-	dir = "repos",
+	dir: string,
 ): string {
 	const root = normalizeDir(dir);
 	const lines = [AGENTS_START, "", "## Vendored Source", ""];
@@ -55,10 +55,10 @@ export function renderAgentsBlock(
 	return lines.join("\n");
 }
 
-/** Full AGENTS.md content for the vendor directory itself (e.g. `repos/AGENTS.md`). */
+/** Full AGENTS.md content for the vendor directory itself (e.g. `.repos/AGENTS.md`). */
 export function renderVendorDirAgentsMd(
 	repos: AgentsRepoLine[],
-	dir = "repos",
+	dir: string,
 ): string {
 	const root = normalizeDir(dir);
 	const lines = [
@@ -105,7 +105,7 @@ export function renderVendorDirAgentsMd(
 export function upsertAgentsBlock(
 	existing: string | undefined,
 	repos: AgentsRepoLine[],
-	dir = "repos",
+	dir: string,
 ): string {
 	const block = renderAgentsBlock(repos, dir);
 	if (!existing || existing.trim().length === 0) {

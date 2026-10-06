@@ -2,10 +2,10 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://unpkg.com/vendor-src/schema.json",
 	"title": "vendor-src manifest",
-	"description": "Configuration for vendor-src: vendored dependency sources under a directory such as repos/.",
+	"description": "Configuration for vendor-src: vendored dependency sources under a directory such as .repos/.",
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["repos"],
+	"required": ["dir", "repos"],
 	"properties": {
 		"$schema": {
 			"type": "string",
@@ -13,8 +13,8 @@
 		},
 		"dir": {
 			"type": "string",
-			"description": "Directory that holds vendored repositories (default: repos). Change this if you prefer another folder name; AGENTS.md and ignore tooling follow this setting.",
-			"default": "repos",
+			"description": "Directory that holds vendored repositories. vendor-src writes .repos when it creates this file; change it if you prefer another folder name. AGENTS.md and ignore tooling follow this setting.",
+			"examples": [".repos"],
 			"minLength": 1
 		},
 		"repos": {
