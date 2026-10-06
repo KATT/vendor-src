@@ -1,4 +1,5 @@
 {
+	"$schema": "https://unpkg.com/vendor-src/schema.json",
 	"dir": "repos",
 	"repos": {
 		"effect": {
@@ -7,6 +8,5 @@
 			"version": "4.0.1",
 			"ref": "effect@4.0.1"
 		}
-	},
-	"ignore": []
+	}
 }

@@ -14,10 +14,16 @@ jobs:
           ref: main
           token: ${{ secrets.ACCESS_TOKEN }}
       - uses: ./.github/actions/prepare
+      # Trusted Publishing (OIDC) needs a current npm + registry-url configured.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest
       - run: pnpm build
       - env:
           GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-        uses: JoshuaKGoldberg/release-it-action@v0.5.7
+        uses: JoshuaKGoldberg/release-it-action@v0.6.4
 
 name: Release
 

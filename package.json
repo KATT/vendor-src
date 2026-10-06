@@ -21,12 +21,14 @@
 		"vendor-src": "./dist/bin.mjs"
 	},
 	"files": [
-		"dist/"
+		"dist/",
+		"schema/"
 	],
 	"type": "module",
 	"sideEffects": false,
 	"exports": {
-		".": "./dist/index.mjs"
+		".": "./dist/index.mjs",
+		"./schema.json": "./schema/vendor-src.schema.json"
 	},
 	"scripts": {
 		"build": "vp pack",

@@ -14,6 +14,7 @@ export {
 export {
 	findDrift,
 	MANIFEST_FILENAME,
+	MANIFEST_SCHEMA_URL,
 	parseManifest,
 	stringifyManifest,
 	type VendorSrcManifest,

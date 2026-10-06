@@ -58,14 +58,12 @@ export function findIgnoredPaths(
 }
 
 export function resolveIgnorePatterns(options: {
-	manifestIgnore?: readonly string[];
 	repoIgnore?: readonly string[];
 	cliIgnore?: readonly string[];
 }): string[] {
 	return [
 		...new Set([
 			...DEFAULT_IGNORE,
-			...(options.manifestIgnore ?? []),
 			...(options.repoIgnore ?? []),
 			...(options.cliIgnore ?? []),
 		]),
