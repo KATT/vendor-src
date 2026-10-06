@@ -1,4 +1,4 @@
-import { Console, Effect, Option } from "effect";
+import { Console, Effect, FileSystem, Option, Path } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 
 import {
@@ -117,8 +117,19 @@ export const addCommand = Command.make(
 			);
 		}
 
-		const cliIgnore = ignore as ReadonlyArray<string>;
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
 		const prefix = `${manifest.dir}/${vendorName}`;
+		const prefixPath = path.join(projectRoot, prefix);
+		if (yield* fs.exists(prefixPath)) {
+			return yield* Effect.fail(
+				new Error(
+					`${prefix} already exists on disk but is not in vendor-src.json. Remove it first:\n  git rm -rq ${prefix} && git commit -m "Remove ${prefix}"\nThen re-run: vendor-src add ${packageName}`,
+				),
+			);
+		}
+
+		const cliIgnore = ignore as ReadonlyArray<string>;
 		yield* Console.log(
 			`Vendoring ${packageName}@${version} as ${prefix} (${gitRef})`,
 		);

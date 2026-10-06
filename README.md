@@ -12,6 +12,7 @@ Coding agents are better at exploring source than reading documentation. `node_m
 
 ```shell
 pnpm add -D vendor-src
+# pnpm workspaces: pnpm add -Dw vendor-src
 ```
 
 ## Quick start (copy/paste for agents)
@@ -21,15 +22,28 @@ Paste this into your coding agent:
 ```text
 Set up vendor-src in this repo:
 
-1. Install: pnpm add -D vendor-src
-   (or: npm install -D vendor-src / yarn add -D vendor-src / bun add -d vendor-src)
+1. Install vendor-src as a root devDependency:
+   - pnpm workspace: pnpm add -Dw vendor-src
+   - otherwise: pnpm add -D vendor-src
+     (or: npm install -D vendor-src / yarn add -D vendor-src / bun add -d vendor-src)
 2. Ensure the git working tree is clean and has at least one commit.
-3. Run: pnpm exec vendor-src add <package>
+   Commit the install (package.json / lockfile) before continuing.
+3. If repos/<name> already exists from a manual subtree (and there is no
+   vendor-src.json entry), remove it first:
+   git rm -rq repos/<name> && git commit -m "Remove repos/<name>"
+4. Run: pnpm exec vendor-src add <package>
    Example: pnpm exec vendor-src add effect
-4. Commit the resulting vendor-src.json, AGENTS.md, .ignore, .oxfmtrc.json, .vscode/settings.json, and the subtree commit vendor-src created.
-5. Never run formatters/linters on repos/**. vendor-src already writes .ignore, .oxfmtrc.json ignorePatterns, and editor excludes. If you add a new tool, exclude repos/** before the first run.
-6. Prefer reading repos/<name> as read-only reference. Do not import from repos/ — keep importing the normal npm package.
-7. After dependency upgrades, run: pnpm exec vendor-src check
+   (package must already be installed so the matching git tag can be resolved)
+5. Commit vendor-src.json, AGENTS.md (or the file it symlinks to), .ignore,
+   .oxfmtrc.json / editor ignores if changed, package.json (postinstall), and
+   the subtree commit vendor-src created. Review diffs: do not let oxfmt /
+   ignores get wiped.
+6. Never run formatters/linters on repos/**. vendor-src already writes .ignore,
+   .oxfmtrc.json ignorePatterns, and editor excludes. If you add a new tool,
+   exclude repos/** before the first run.
+7. Prefer reading repos/<name> as read-only reference. Do not import from
+   repos/ — keep importing the normal npm package.
+8. After dependency upgrades, run: pnpm exec vendor-src check
    If it warns, run: pnpm exec vendor-src sync
 ```
 

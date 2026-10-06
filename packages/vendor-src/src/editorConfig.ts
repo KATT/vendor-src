@@ -16,15 +16,28 @@ export function mergeVsCodeSettings(
 	dir: string,
 ): string {
 	const pattern = `${dir.replace(/\/$/, "")}/**`;
-	let settings: Record<string, unknown> = {};
 	if (existingJson?.trim()) {
-		try {
-			settings = JSON.parse(existingJson) as Record<string, unknown>;
-		} catch {
-			settings = {};
+		const settings = parseJsonObject(
+			existingJson,
+			".vscode/settings.json",
+		) as Record<string, unknown>;
+		const before = JSON.stringify(settings);
+		applyVsCodeExcludes(settings, pattern);
+		if (JSON.stringify(settings) === before) {
+			return existingJson.endsWith("\n") ? existingJson : `${existingJson}\n`;
 		}
+		return `${JSON.stringify(settings, null, detectIndent(existingJson))}\n`;
 	}
 
+	const settings: Record<string, unknown> = {};
+	applyVsCodeExcludes(settings, pattern);
+	return `${JSON.stringify(settings, null, "\t")}\n`;
+}
+
+function applyVsCodeExcludes(
+	settings: Record<string, unknown>,
+	pattern: string,
+): void {
 	const autoImportKey = "typescript.preferences.autoImportFileExcludePatterns";
 	const jsAutoImportKey =
 		"javascript.preferences.autoImportFileExcludePatterns";
@@ -49,8 +62,6 @@ export function mergeVsCodeSettings(
 		pattern,
 		true,
 	);
-
-	return `${JSON.stringify(settings, null, "\t")}\n`;
 }
 
 /**
@@ -95,22 +106,100 @@ export function mergeToolingIgnoreFiles(
 
 /**
  * Ensure Oxfmt's native config excludes the vendor dir via `ignorePatterns`.
+ *
+ * If the vendor dir is already covered (e.g. `repos/**`), the existing file is
+ * returned unchanged so JSONC comments and formatting are preserved.
  */
 export function mergeOxfmtConfig(
 	existingJson: string | undefined,
 	dir: string,
 ): string {
 	const pattern = `${dir.replace(/\/$/, "")}/`;
-	let config: Record<string, unknown> = {};
-	if (existingJson?.trim()) {
-		try {
-			config = JSON.parse(existingJson) as Record<string, unknown>;
-		} catch {
-			config = {};
-		}
+	if (!existingJson?.trim()) {
+		return `${JSON.stringify({ ignorePatterns: [pattern] }, null, "\t")}\n`;
 	}
-	config.ignorePatterns = mergeStringArray(config.ignorePatterns, pattern);
-	return `${JSON.stringify(config, null, "\t")}\n`;
+
+	const config = parseJsonObject(existingJson, OXFMT_CONFIG_FILE) as Record<
+		string,
+		unknown
+	>;
+	const before = Array.isArray(config.ignorePatterns)
+		? [...(config.ignorePatterns as unknown[])]
+		: undefined;
+	const merged = mergeStringArray(config.ignorePatterns, pattern);
+	if (
+		before &&
+		before.length === merged.length &&
+		before.every((entry, index) => entry === merged[index])
+	) {
+		return existingJson.endsWith("\n") ? existingJson : `${existingJson}\n`;
+	}
+
+	config.ignorePatterns = merged;
+	return `${JSON.stringify(config, null, detectIndent(existingJson))}\n`;
+}
+
+/** Parse JSON or JSONC (comments / trailing commas stripped). Fail loudly. */
+export function parseJsonObject(text: string, label: string): unknown {
+	try {
+		return JSON.parse(stripJsonc(text));
+	} catch (cause) {
+		throw new Error(
+			`${label} is not valid JSON/JSONC; fix it before running vendor-src (${String(cause)})`,
+		);
+	}
+}
+
+/** Strip `//` and block comments outside of strings; drop trailing commas. */
+export function stripJsonc(text: string): string {
+	let result = "";
+	let i = 0;
+	let inString = false;
+	let escape = false;
+	while (i < text.length) {
+		const char = text[i]!;
+		if (inString) {
+			result += char;
+			if (escape) {
+				escape = false;
+			} else if (char === "\\") {
+				escape = true;
+			} else if (char === '"') {
+				inString = false;
+			}
+			i += 1;
+			continue;
+		}
+		if (char === '"') {
+			inString = true;
+			result += char;
+			i += 1;
+			continue;
+		}
+		if (char === "/" && text[i + 1] === "/") {
+			i += 2;
+			while (i < text.length && text[i] !== "\n") {
+				i += 1;
+			}
+			continue;
+		}
+		if (char === "/" && text[i + 1] === "*") {
+			i += 2;
+			while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) {
+				i += 1;
+			}
+			i += 2;
+			continue;
+		}
+		result += char;
+		i += 1;
+	}
+	return result.replace(/,\s*([}\]])/g, "$1");
+}
+
+export function detectIndent(text: string): string {
+	const match = text.match(/\n([ \t]+)"/);
+	return match?.[1] ?? "\t";
 }
 
 function mergeStringArray(value: unknown, item: string): string[] {
