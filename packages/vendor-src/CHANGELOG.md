@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.3](https://github.com/KATT/vendor-src/compare/0.4.2...0.4.3) (2026-10-06)
+
+### Bug Fixes
+
+- split root vs vendor-dir AGENTS roles ([#18](https://github.com/KATT/vendor-src/issues/18)) ([fcc7e63](https://github.com/KATT/vendor-src/commit/fcc7e634b417cc6fe8dcde0ecd124c6fb94d8bee))
+
 ## [0.4.2](https://github.com/KATT/vendor-src/compare/0.4.1...0.4.2) (2026-10-06)
 
 ### Bug Fixes
