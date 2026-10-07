@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.15.1](https://github.com/KATT/vendor-src/compare/0.15.0...0.15.1) (2026-10-07)
+
+### Features
+
+- agent prompt suggests dependencies and lets the user pick; init prints numbered setup steps ([#47](https://github.com/KATT/vendor-src/issues/47)) ([bb93961](https://github.com/KATT/vendor-src/commit/bb93961ef40effa63751474dcde07420f2eb8032))
+
+### Bug Fixes
+
+- track the installed version of a package added by git URL ([#46](https://github.com/KATT/vendor-src/issues/46)) ([a7720b2](https://github.com/KATT/vendor-src/commit/a7720b294900e415c0b6f1e2cec8be8fd4a25a7e))
+
 ## [0.15.0](https://github.com/KATT/vendor-src/compare/0.14.0...0.15.0) (2026-10-07)
 
 ### ⚠ BREAKING CHANGES
