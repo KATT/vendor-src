@@ -1,3 +1,7 @@
+## Documentation
+
+- `README.md` describes how vendor-src works **now**. Don't reference history: no "since vX", "as of vX", "previously", "no longer", "pre-X.Y.Z", or migration notes. Version history and upgrade notes belong in `packages/vendor-src/CHANGELOG.md` (generated from commit messages on release), so put that context in the commit / PR description instead.
+
 <!-- vendor-src:start -->
 
 ## Vendored Source
