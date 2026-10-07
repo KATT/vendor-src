@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.0](https://github.com/KATT/vendor-src/compare/0.11.0...0.12.0) (2026-10-07)
+
+### Features
+
+- list a checkout's packages in a single packages array ([#36](https://github.com/KATT/vendor-src/issues/36)) ([c8b6490](https://github.com/KATT/vendor-src/commit/c8b64903def2e39facf793eee5998cdf1ad82913))
+
 ## [0.11.0](https://github.com/KATT/vendor-src/compare/0.10.1...0.11.0) (2026-10-07)
 
 ### Features
