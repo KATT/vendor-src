@@ -161,19 +161,45 @@ export class Git extends Context.Service<
 				return tag;
 			});
 
+			// Fetch into a private ref instead of reading FETCH_HEAD, which any
+			// concurrent `git fetch` (e.g. an editor's auto-fetch) can overwrite.
+			const withFetchedCommit = <A>(
+				url: string,
+				ref: string,
+				use: (commit: string) => Effect.Effect<A, GitError>,
+			) => {
+				const tmpRef = `refs/vendor-src/fetch/${process.pid}-${Date.now()}`;
+				return Effect.gen(function* () {
+					yield* interactive([
+						"fetch",
+						"--no-tags",
+						"--no-write-fetch-head",
+						url,
+						`+${toFetchRef(ref)}:${tmpRef}`,
+					]);
+					const commit = yield* capture(["rev-parse", `${tmpRef}^{commit}`]);
+					return yield* use(commit);
+				}).pipe(
+					Effect.ensuring(
+						capture(["update-ref", "-d", tmpRef]).pipe(Effect.ignore),
+					),
+				);
+			};
+
 			const subtreeAdd = Effect.fn("Git.subtreeAdd")(function* (
 				prefix: string,
 				url: string,
 				ref: string,
 			) {
-				yield* interactive([
-					"subtree",
-					"add",
-					`--prefix=${prefix}`,
-					url,
-					toFetchRef(ref),
-					"--squash",
-				]);
+				yield* withFetchedCommit(url, ref, (commit) =>
+					interactive([
+						"subtree",
+						"add",
+						`--prefix=${prefix}`,
+						commit,
+						"--squash",
+					]),
+				);
 			});
 
 			// `git subtree pull` needs the add's squash commit reachable under the
@@ -183,15 +209,17 @@ export class Git extends Context.Service<
 				url: string,
 				ref: string,
 			) {
-				yield* interactive(["fetch", "--no-tags", url, toFetchRef(ref)]);
-				const commit = yield* capture(["rev-parse", "FETCH_HEAD^{commit}"]);
-				yield* capture(["rm", "-rq", "--ignore-unmatch", "--", prefix]);
-				yield* capture(["read-tree", `--prefix=${prefix}/`, "-u", commit]);
-				yield* interactive([
-					"commit",
-					"-m",
-					`chore(vendor): update ${prefix} to ${ref}`,
-				]);
+				yield* withFetchedCommit(url, ref, (commit) =>
+					Effect.gen(function* () {
+						yield* capture(["rm", "-rq", "--ignore-unmatch", "--", prefix]);
+						yield* capture(["read-tree", `--prefix=${prefix}/`, "-u", commit]);
+						yield* interactive([
+							"commit",
+							"-m",
+							`chore(vendor): update ${prefix} to ${ref}`,
+						]);
+					}),
+				);
 			});
 
 			const commitAll = Effect.fn("Git.commitAll")(function* (message: string) {

@@ -219,6 +219,44 @@ describe("vendor-src CLI", () => {
 			}).pipe(Effect.provide(TestLayer)),
 	);
 
+	it.live("vendors the fetched tag regardless of FETCH_HEAD", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "src/index.ts": "export const v = 1\n" } },
+				{ version: "1.1.0", files: { "src/index.ts": "export const v = 2\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* installPackage(project, "lib", "1.0.0", upstream);
+			yield* initAndCommit(project);
+
+			const fetchHead = `${git(project, "rev-parse", "HEAD")}\t\tbranch 'unrelated' of elsewhere\n`;
+			yield* writeFiles(project, { ".git/FETCH_HEAD": fetchHead });
+
+			yield* vendorSrc(project, "add", "lib");
+			assert.strictEqual(
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
+				"export const v = 1\n",
+			);
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor lib");
+
+			yield* installPackage(project, "lib", "1.1.0", upstream);
+			yield* vendorSrc(project, "sync");
+			assert.strictEqual(
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
+				"export const v = 2\n",
+			);
+
+			assert.strictEqual(
+				yield* readFile(project, ".git", "FETCH_HEAD"),
+				fetchHead,
+			);
+			assert.strictEqual(git(project, "for-each-ref", "refs/vendor-src/"), "");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
 	it.live("adds a package installed only in a workspace package", () =>
 		Effect.gen(function* () {
 			const path = yield* Path.Path;
