@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0](https://github.com/KATT/vendor-src/compare/0.6.1...0.7.0) (2026-10-07)
+
+### Features
+
+- add required rootAgentsMd option to vendor-src.json ([#26](https://github.com/KATT/vendor-src/issues/26)) ([5cf7035](https://github.com/KATT/vendor-src/commit/5cf70352d66d74f2805a62ff3b70f19ae8d6be83))
+
 ## [0.6.1](https://github.com/KATT/vendor-src/compare/0.6.0...0.6.1) (2026-10-06)
 
 ### Bug Fixes
