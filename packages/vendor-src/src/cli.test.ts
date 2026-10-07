@@ -219,6 +219,34 @@ describe("vendor-src CLI", () => {
 			}).pipe(Effect.provide(TestLayer)),
 	);
 
+	it.live("adds a package installed only in a workspace package", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "src/index.ts": "export {}\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"), {
+				"pnpm-workspace.yaml": "packages:\n  - apps/*\n",
+				"apps/web/package.json": "{}",
+			});
+			yield* installPackage(
+				path.join(project, "apps", "web"),
+				"lib",
+				"1.0.0",
+				upstream,
+			);
+			yield* initAndCommit(project);
+
+			yield* vendorSrc(project, "add", "lib");
+			assert.isTrue(yield* exists(project, ".repos", "lib", "src", "index.ts"));
+			const manifest = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.strictEqual(manifest.repos.lib?.ref, "lib@1.0.0");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
 	it.live("renders user errors without a stack trace", () =>
 		Effect.gen(function* () {
 			const project = yield* makeProject(yield* tempDir);

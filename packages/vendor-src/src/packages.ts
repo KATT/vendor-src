@@ -81,7 +81,10 @@ export class InstalledPackages extends Context.Service<
 			ReadonlyArray<string>,
 			PlatformError
 		>;
-		/** The package.json Node would resolve for `name` from the project root. */
+		/**
+		 * The package.json of `name` as installed for the root or any workspace
+		 * package; the highest version wins when several are installed.
+		 */
 		readonly packageJson: (
 			name: string,
 		) => Effect.Effect<Option.Option<InstalledPackageJson>, PlatformError>;
@@ -203,19 +206,20 @@ export class InstalledPackages extends Context.Service<
 			const packageJson = Effect.fn("InstalledPackages.packageJson")(function* (
 				name: string,
 			) {
-				return yield* resolveFrom(project.root, name);
+				const roots = yield* workspaceRoots;
+				const found = Arr.getSomes(
+					yield* Effect.forEach(roots, (root) => resolveFrom(root, name)),
+				);
+				const highest = maxSemver(found.map((pkg) => pkg.version));
+				return Option.fromUndefinedOr(
+					found.find((pkg) => pkg.version === highest),
+				);
 			});
 
 			const version = Effect.fn("InstalledPackages.version")(function* (
 				name: string,
 			) {
-				const roots = yield* workspaceRoots;
-				const found = yield* Effect.forEach(roots, (root) =>
-					resolveFrom(root, name),
-				);
-				return Option.fromUndefinedOr(
-					maxSemver(Arr.getSomes(found).map((pkg) => pkg.version)),
-				);
+				return Option.map(yield* packageJson(name), (pkg) => pkg.version);
 			});
 
 			return InstalledPackages.of({ workspaceRoots, packageJson, version });
