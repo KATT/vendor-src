@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.1](https://github.com/KATT/vendor-src/compare/0.9.0...0.9.1) (2026-10-07)
+
+### Bug Fixes
+
+- **add:** find packages installed in workspace packages ([#30](https://github.com/KATT/vendor-src/issues/30)) ([a47c351](https://github.com/KATT/vendor-src/commit/a47c35152e024785bea446ec4d38139996d51d2d))
+
 ## [0.9.0](https://github.com/KATT/vendor-src/compare/0.8.0...0.9.0) (2026-10-07)
 
 ### Features
