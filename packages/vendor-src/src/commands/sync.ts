@@ -6,6 +6,7 @@ import { repoPrefix, setRepo } from "../manifest.ts";
 import { InstalledPackages } from "../packages.ts";
 import { Project } from "../project.ts";
 import { pruneIgnoredPaths } from "../prune.ts";
+import { repositoryDirectory } from "../repository.ts";
 import { CommandError, reportErrors } from "./shared.ts";
 
 export const syncCommand = Command.make(
@@ -34,6 +35,13 @@ export const syncCommand = Command.make(
 			yield* Console.log("No vendored repositories to sync.");
 			return;
 		}
+
+		const installedDirectory = (packageName: string) =>
+			Effect.map(packages.packageJson(packageName), (pkg) =>
+				Option.isSome(pkg)
+					? repositoryDirectory(pkg.value.repository)
+					: undefined,
+			);
 
 		let updated = 0;
 		for (const name of selected) {
@@ -65,6 +73,26 @@ export const syncCommand = Command.make(
 				});
 				updated += 1;
 			}
+
+			// Backfill package paths for entries added before they were recorded.
+			const current = manifest.repos[name]!;
+			const directory =
+				current.directory ?? (yield* installedDirectory(current.package));
+			const siblings = yield* Effect.forEach(
+				current.siblings ?? [],
+				Effect.fnUntraced(function* (sibling) {
+					const found =
+						sibling.directory ?? (yield* installedDirectory(sibling.package));
+					return found === undefined
+						? sibling
+						: { ...sibling, directory: found };
+				}),
+			);
+			manifest = setRepo(manifest, name, {
+				...current,
+				...(directory === undefined ? {} : { directory }),
+				siblings,
+			});
 
 			// Always prune so ignore-pattern edits apply without a version bump.
 			yield* pruneIgnoredPaths(manifest, name);

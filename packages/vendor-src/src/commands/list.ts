@@ -1,6 +1,7 @@
 import { Console, Effect, Option } from "effect";
 import { Command } from "effect/cli";
 
+import { repoPrefix } from "../manifest.ts";
 import { InstalledPackages } from "../packages.ts";
 import { Project } from "../project.ts";
 import { reportErrors } from "./shared.ts";
@@ -27,6 +28,27 @@ export const listCommand = Command.make(
 			yield* Console.log(
 				`${name}\t${repo.package}@${repo.version}\t${repo.ref}\t${status}`,
 			);
+
+			for (const sibling of repo.siblings ?? []) {
+				const prefix = repoPrefix(manifest, name);
+				const inCheckout = yield* project.checkoutPackageVersion(
+					sibling.directory === undefined
+						? prefix
+						: `${prefix}/${sibling.directory}`,
+				);
+				const installed = yield* packages.version(sibling.package);
+				const checkout = Option.getOrElse(inCheckout, () => "?");
+				const siblingStatus = Option.match(installed, {
+					onNone: () => "not installed",
+					onSome: (version) =>
+						Option.contains(inCheckout, version)
+							? "ok"
+							: `checkout differs (installed ${version})`,
+				});
+				yield* Console.log(
+					`  + ${sibling.package}@${checkout}\tvia ${repo.package}\t${siblingStatus}`,
+				);
+			}
 		}
 	}, reportErrors),
 ).pipe(

@@ -67,6 +67,10 @@ const PackageJsonFields = Schema.Struct({
 
 const POSTINSTALL = "vendor-src check";
 
+const CheckoutPackageJson = Schema.fromJsonString(
+	Schema.Struct({ version: Schema.optionalKey(Schema.String) }),
+);
+
 /** Project-relative paths a write step created or modified. */
 export type ChangedFiles = ReadonlyArray<string>;
 
@@ -101,6 +105,10 @@ export class Project extends Context.Service<
 		readonly writeEditorIgnores: (
 			manifest: Manifest,
 		) => Effect.Effect<ChangedFiles, ConfigFileError | PlatformError>;
+		/** The `version` in `{path}/package.json` inside a checkout, if readable. */
+		readonly checkoutPackageVersion: (
+			path: string,
+		) => Effect.Effect<Option.Option<string>, PlatformError>;
 		/** Add `vendor-src check` to the project's `postinstall` script. */
 		readonly ensurePostinstall: Effect.Effect<
 			ChangedFiles,
@@ -205,17 +213,51 @@ export class Project extends Context.Service<
 			return yield* writeIfChanged(MANIFEST_FILENAME, encodeManifest(manifest));
 		});
 
+		const checkoutPackageVersion = Effect.fn("Project.checkoutPackageVersion")(
+			function* (packagePath: string) {
+				const raw = yield* readOptional(resolve(packagePath, "package.json"));
+				if (Option.isNone(raw)) {
+					return Option.none<string>();
+				}
+				return yield* Schema.decodeEffect(CheckoutPackageJson)(raw.value).pipe(
+					Effect.map(({ version }) => Option.fromUndefinedOr(version)),
+					Effect.orElseSucceed(() => Option.none<string>()),
+				);
+			},
+		);
+
 		const writeAgentsMd = Effect.fn("Project.writeAgentsMd")(function* (
 			manifest: Manifest,
 		) {
 			const dir = vendorDir(manifest);
-			const repos: AgentsRepoLine[] = Object.entries(manifest.repos).map(
-				([name, repo]) => ({
-					name,
-					package: repo.package,
-					path: repoPrefix(manifest, name),
-					version: repo.version,
-					ref: repo.ref,
+			const repos: AgentsRepoLine[] = yield* Effect.forEach(
+				Object.entries(manifest.repos),
+				Effect.fnUntraced(function* ([name, repo]) {
+					const path = repoPrefix(manifest, name);
+					const siblings = yield* Effect.forEach(
+						repo.siblings ?? [],
+						Effect.fnUntraced(function* (sibling) {
+							const version = yield* checkoutPackageVersion(
+								sibling.directory === undefined
+									? path
+									: `${path}/${sibling.directory}`,
+							);
+							return {
+								package: sibling.package,
+								directory: sibling.directory,
+								version: Option.getOrUndefined(version),
+							};
+						}),
+					);
+					return {
+						name,
+						package: repo.package,
+						path,
+						version: repo.version,
+						ref: repo.ref,
+						directory: repo.directory,
+						siblings,
+					};
 				}),
 			);
 
@@ -318,6 +360,7 @@ export class Project extends Context.Service<
 			writeManifest,
 			writeAgentsMd,
 			writeEditorIgnores,
+			checkoutPackageVersion,
 			ensurePostinstall,
 		});
 	});

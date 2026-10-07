@@ -55,3 +55,52 @@ export function normalizeRepositoryUrl(
 /** Default checkout directory name, e.g. `@effect/platform-node` -> `platform-node`. */
 export const defaultVendorName = (packageName: string): string =>
 	unscopedName(packageName);
+
+/**
+ * The package's path inside its repo from `repository.directory`, e.g.
+ * `packages/react-start`; undefined for packages at the repo root.
+ */
+export function repositoryDirectory(
+	repository: string | PackageRepository | undefined,
+): string | undefined {
+	if (typeof repository !== "object" || !repository.directory) {
+		return undefined;
+	}
+	const directory = repository.directory
+		.trim()
+		.replaceAll("\\", "/")
+		.replace(/^(\.\/)+/, "")
+		.replace(/\/+$/, "");
+	return directory === "" || directory === "." ? undefined : directory;
+}
+
+/** Repository name from a git URL, e.g. `https://github.com/TanStack/router.git` -> `router`. */
+export const repositoryName = (url: string): string =>
+	url
+		.replace(/\.git$/, "")
+		.split(/[/:]/)
+		.filter(Boolean)
+		.pop() ?? url;
+
+/** Repository owner/name for display, e.g. `TanStack/router`. */
+export const repositorySlug = (url: string): string =>
+	url
+		.replace(/\.git$/, "")
+		.split(/[/:]/)
+		.filter(Boolean)
+		.slice(-2)
+		.join("/");
+
+/**
+ * Default checkout name: the repo name for packages that live in a
+ * monorepo (`@tanstack/react-start` -> `router`), so every package from that
+ * repo can share it; otherwise the unscoped package name.
+ */
+export const defaultCheckoutName = (source: {
+	readonly packageName: string;
+	readonly url: string;
+	readonly directory?: string | undefined;
+}): string =>
+	source.directory === undefined
+		? defaultVendorName(source.packageName)
+		: repositoryName(source.url);

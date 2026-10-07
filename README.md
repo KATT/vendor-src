@@ -159,6 +159,32 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 }
 ```
 
+## Monorepos: several packages from one repo
+
+Many npm packages are published from the same git repo (every `@tanstack/react-*` package from [TanStack/router](https://github.com/TanStack/router), every `@effect/*` package from [Effect-TS/effect](https://github.com/Effect-TS/effect)). vendor-src keeps **one checkout per repo**:
+
+- The first package you `add` pins the checkout to its tag. When the package's `repository.directory` says it lives in a monorepo, the checkout is named after the repo (`.repos/router`), not the package.
+- Adding another package from the same repo doesn't clone again. It is recorded under `siblings` on that entry, and `add` prints where its source is and which version the checkout holds.
+- AGENTS.md points every package at its own folder, e.g. `@tanstack/react-router` → `.repos/router/packages/react-router`.
+- `check` and `sync` follow the pinning package. A sibling's source is whatever the pinned tag contains; `list` shows it next to the installed version.
+- `vendor-src remove <sibling-package>` stops tracking a sibling and keeps the checkout; `vendor-src remove <checkout>` removes the checkout and its siblings.
+
+```shell
+pnpm exec vendor-src add @tanstack/react-start    # checks out .repos/router at @tanstack/react-start@<installed>
+pnpm exec vendor-src add @tanstack/react-router   # recorded as a sibling; no second clone
+```
+
+```json
+"router": {
+	"package": "@tanstack/react-start",
+	"url": "https://github.com/TanStack/router.git",
+	"version": "1.168.60",
+	"ref": "@tanstack/react-start@1.168.60",
+	"directory": "packages/react-start",
+	"siblings": [{ "package": "@tanstack/react-router", "directory": "packages/react-router" }]
+}
+```
+
 ## Manifest
 
 `dir` is the folder for checkouts and is required. `vendor-src init` writes `.repos` unless you pass `--dir`. AGENTS.md text, oxfmt ignores, and editor excludes all follow this value; after changing it by hand, move the checkouts and re-run `vendor-src init`.
@@ -183,7 +209,7 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 
 Editors can validate via `$schema`. The schema is also available from the package as `vendor-src/schema.json`. vendor-src validates the manifest on every run and names the offending field when an entry is incomplete.
 
-When multiple installed versions exist across a workspace, vendor-src pins the highest semver.
+vendor-src finds installed packages in the project root and every workspace package (pnpm `packages:` or npm/yarn `workspaces`). When several versions are installed, it pins the highest semver.
 
 ## Development
 

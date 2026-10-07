@@ -1,16 +1,16 @@
 import { Effect, FileSystem, Option, Schema } from "effect";
 import { CliError, Flag } from "effect/cli";
 
-import { repoPrefix, type Manifest } from "../manifest.ts";
+import { findVendoredPackage, repoPrefix, type Manifest } from "../manifest.ts";
+import { InstalledPackages, suggestPackages } from "../packages.ts";
+import { Project } from "../project.ts";
 import {
-	InstalledPackages,
+	normalizeRepositoryUrl,
+	repositoryDirectory,
 	repositoryName,
 	repositorySlug,
-	suggestPackages,
-} from "../packages.ts";
+} from "../repository.ts";
 import { unscopedName } from "../tags.ts";
-import { Project } from "../project.ts";
-import { normalizeRepositoryUrl } from "../repository.ts";
 
 /** A precondition or usage problem reported to the user as-is. */
 export class CommandError extends Schema.TaggedError<CommandError>()(
@@ -39,6 +39,8 @@ export interface InstalledSource {
 	readonly packageName: string;
 	readonly version: string;
 	readonly url: string;
+	/** Path of the package inside its repo (monorepos), from `repository.directory`. */
+	readonly directory?: string | undefined;
 }
 
 /** Resolve the git URL and pinned version for an installed npm package. */
@@ -99,20 +101,31 @@ export const resolveInstalledSource = Effect.fn("resolveInstalledSource")(
 				message: `package ${packageName} has no repository field; pass a git URL instead`,
 			});
 		}
-		return { packageName, version, url } satisfies InstalledSource;
+		return {
+			packageName,
+			version,
+			url,
+			directory: repositoryDirectory(installed.value.repository),
+		} satisfies InstalledSource;
 	},
 );
 
-/** Fail when `name` is already tracked in vendor-src.json. */
-export const ensureNotVendored = Effect.fnUntraced(function* (
+/** Fail when `packageName` is already vendored, as a pin or a sibling. */
+export const ensurePackageNotVendored = Effect.fnUntraced(function* (
 	manifest: Manifest,
-	name: string,
+	packageName: string,
 ) {
-	if (manifest.repos[name] !== undefined) {
-		return yield* new CommandError({
-			message: `${repoPrefix(manifest, name)} is already vendored; use vendor-src sync ${name}`,
-		});
+	const found = findVendoredPackage(manifest, packageName);
+	if (found === undefined) {
+		return;
 	}
+	const prefix = repoPrefix(manifest, found.name);
+	return yield* new CommandError({
+		message:
+			found.role === "pin"
+				? `${packageName} is already vendored at ${prefix}; use vendor-src sync ${found.name}`
+				: `${packageName} is already vendored in ${prefix} (pinned by ${found.repo.package}@${found.repo.version})`,
+	});
 });
 
 /** Whether the checkout directory for `name` exists on disk. */

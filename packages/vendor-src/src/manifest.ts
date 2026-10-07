@@ -8,11 +8,24 @@ export const MANIFEST_SCHEMA_URL = "https://unpkg.com/vendor-src/schema.json";
 /** Vendor dir written into a freshly bootstrapped vendor-src.json. */
 export const DEFAULT_DIR = ".repos";
 
+/** Another npm package whose source lives in the same checkout. */
+export const SiblingPackage = Schema.Struct({
+	package: Schema.NonEmptyString,
+	/** Path of the package inside the repo, from its `repository.directory`. */
+	directory: Schema.optionalKey(Schema.NonEmptyString),
+});
+export type SiblingPackage = typeof SiblingPackage.Type;
+
 export const VendoredRepo = Schema.Struct({
+	/** npm package whose installed version pins the checkout's tag. */
 	package: Schema.NonEmptyString,
 	url: Schema.NonEmptyString,
 	version: Schema.NonEmptyString,
 	ref: Schema.NonEmptyString,
+	/** Path of `package` inside the repo, from its `repository.directory`. */
+	directory: Schema.optionalKey(Schema.NonEmptyString),
+	/** Other installed packages published from the same repo. */
+	siblings: Schema.optionalKey(Schema.Array(SiblingPackage)),
 	/** Path globs to prune from this vendored repo after add and sync. */
 	ignore: Schema.optionalKey(Schema.Array(Schema.String)),
 });
@@ -85,14 +98,59 @@ export const repoPrefix = (manifest: Manifest, name: string): string =>
 export const setRepo = (
 	manifest: Manifest,
 	name: string,
-	{ ignore, ...repo }: VendoredRepo,
+	{ ignore, siblings, ...repo }: VendoredRepo,
 ): Manifest => ({
 	...manifest,
 	repos: {
 		...manifest.repos,
-		[name]: ignore && ignore.length > 0 ? { ...repo, ignore } : repo,
+		[name]: {
+			...repo,
+			...(siblings && siblings.length > 0 ? { siblings } : {}),
+			...(ignore && ignore.length > 0 ? { ignore } : {}),
+		},
 	},
 });
+
+/** Git hosts treat owner/repo case-insensitively; compare URLs the same way. */
+const repositoryKey = (url: string) =>
+	url
+		.trim()
+		.toLowerCase()
+		.replace(/\/+$/, "")
+		.replace(/\.git$/, "");
+
+/** The vendored entry that checks out `url`, if any. */
+export const findRepoByUrl = (
+	manifest: Manifest,
+	url: string,
+): readonly [name: string, repo: VendoredRepo] | undefined =>
+	Object.entries(manifest.repos).find(
+		([, repo]) => repositoryKey(repo.url) === repositoryKey(url),
+	);
+
+export interface VendoredPackage {
+	/** Checkout name under the vendor dir. */
+	readonly name: string;
+	readonly repo: VendoredRepo;
+	/** Whether this package pins the checkout or rides along as a sibling. */
+	readonly role: "pin" | "sibling";
+}
+
+/** Where `packageName` is vendored, as the pinning package or a sibling. */
+export const findVendoredPackage = (
+	manifest: Manifest,
+	packageName: string,
+): VendoredPackage | undefined => {
+	for (const [name, repo] of Object.entries(manifest.repos)) {
+		if (repo.package === packageName) {
+			return { name, repo, role: "pin" };
+		}
+		if (repo.siblings?.some((sibling) => sibling.package === packageName)) {
+			return { name, repo, role: "sibling" };
+		}
+	}
+	return undefined;
+};
 
 export const removeRepo = (manifest: Manifest, name: string): Manifest => ({
 	...manifest,

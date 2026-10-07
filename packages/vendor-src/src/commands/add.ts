@@ -2,18 +2,24 @@ import { Console, Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 
 import { Git } from "../git.ts";
-import { repoPrefix, setRepo } from "../manifest.ts";
+import { findRepoByUrl, repoPrefix, setRepo } from "../manifest.ts";
 import { Project } from "../project.ts";
 import { pruneIgnoredPaths } from "../prune.ts";
-import { defaultVendorName, normalizeRepositoryUrl } from "../repository.ts";
+import {
+	defaultCheckoutName,
+	defaultVendorName,
+	normalizeRepositoryUrl,
+	repositorySlug,
+} from "../repository.ts";
 import {
 	checkoutExists,
 	CommandError,
-	ensureNotVendored,
+	ensurePackageNotVendored,
 	nameFlag,
 	refFlag,
 	reportErrors,
 	resolveInstalledSource,
+	type InstalledSource,
 } from "./shared.ts";
 
 const isGitUrl = (target: string) =>
@@ -43,7 +49,8 @@ export const addCommand = Command.make(
 		const manifest = yield* project.readManifest;
 		yield* git.ensureReady;
 
-		const source = isGitUrl(target)
+		const fromGitUrl = isGitUrl(target);
+		const source: InstalledSource = fromGitUrl
 			? {
 					packageName: Option.getOrElse(name, () =>
 						defaultVendorName(
@@ -66,11 +73,77 @@ export const addCommand = Command.make(
 				}
 			: yield* resolveInstalledSource(target);
 
+		yield* ensurePackageNotVendored(manifest, source.packageName);
+
+		const sameRepo = findRepoByUrl(manifest, source.url);
+		if (sameRepo !== undefined) {
+			const [existingName, existing] = sameRepo;
+			const existingPrefix = repoPrefix(manifest, existingName);
+			const pinned = `${existing.package}@${existing.version}`;
+			const conflict = fromGitUrl
+				? `${source.url} is already vendored at ${existingPrefix}`
+				: Option.isSome(name) && name.value !== existingName
+					? `--name ${name.value} would check out ${repositorySlug(source.url)} a second time; it is already vendored at ${existingPrefix}`
+					: Option.isSome(ref)
+						? `--ref can't be used for ${source.packageName}: it shares ${existingPrefix}, which is pinned by ${pinned}`
+						: undefined;
+			if (conflict !== undefined) {
+				return yield* new CommandError({ message: conflict });
+			}
+
+			const sibling = {
+				package: source.packageName,
+				...(source.directory === undefined
+					? {}
+					: { directory: source.directory }),
+			};
+			const updated = setRepo(manifest, existingName, {
+				...existing,
+				siblings: [...(existing.siblings ?? []), sibling].toSorted((a, b) =>
+					a.package.localeCompare(b.package),
+				),
+				ignore: [...new Set([...(existing.ignore ?? []), ...ignore])],
+			});
+			if (ignore.length > 0) {
+				yield* pruneIgnoredPaths(updated, existingName);
+			}
+			const changed = [
+				...(yield* project.writeManifest(updated)),
+				...(yield* project.writeAgentsMd(updated)),
+			];
+
+			const sourcePath =
+				source.directory === undefined
+					? existingPrefix
+					: `${existingPrefix}/${source.directory}`;
+			const inCheckout = yield* project.checkoutPackageVersion(sourcePath);
+			const versions = Option.match(inCheckout, {
+				onNone: () => "",
+				onSome: (version) =>
+					version === source.version
+						? ` (${version}, same as installed)`
+						: ` (${version} in the checkout, ${source.version} installed; the checkout follows ${existing.package})`,
+			});
+			yield* Console.log(
+				[
+					`${source.packageName} comes from ${repositorySlug(source.url)}, which is already vendored at ${existingPrefix} (pinned by ${pinned}).`,
+					`Recorded it there instead of checking it out again. Source: ${sourcePath}${versions}`,
+					`Commit: ${changed.join(", ")}`,
+				].join("\n"),
+			);
+			return;
+		}
+
 		const vendorName = Option.getOrElse(name, () =>
-			defaultVendorName(source.packageName),
+			defaultCheckoutName(source),
 		);
-		yield* ensureNotVendored(manifest, vendorName);
 		const prefix = repoPrefix(manifest, vendorName);
+		const taken = manifest.repos[vendorName];
+		if (taken !== undefined) {
+			return yield* new CommandError({
+				message: `${prefix} is already used for ${repositorySlug(taken.url)}; pass --name <dir> to check out ${repositorySlug(source.url)} elsewhere`,
+			});
+		}
 		if (yield* checkoutExists(manifest, vendorName)) {
 			return yield* new CommandError({
 				message:
@@ -93,6 +166,9 @@ export const addCommand = Command.make(
 			url: source.url,
 			version: source.version,
 			ref: gitRef,
+			...(source.directory === undefined
+				? {}
+				: { directory: source.directory }),
 			ignore,
 		});
 		yield* pruneIgnoredPaths(updated, vendorName);
