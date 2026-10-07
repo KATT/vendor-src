@@ -73,6 +73,27 @@ describe("Git.ensureReady", () => {
 	);
 });
 
+describe("Git.ensureClean", () => {
+	it.live("only looks at the given paths", () =>
+		Effect.gen(function* () {
+			const root = yield* makeProject(yield* tempDir, {
+				"vendor/lib/index.ts": "export {}\n",
+			});
+			yield* writeFiles(root, { "package.json": "{}", "new.txt": "x" });
+			yield* Git.use((git) => git.ensureClean(["vendor/lib"])).pipe(
+				Effect.provide(layerAt(root)),
+			);
+
+			yield* writeFiles(root, { "vendor/lib/index.ts": "edited\n" });
+			const error = yield* Git.use((git) =>
+				git.ensureClean(["vendor/lib"]),
+			).pipe(Effect.provide(layerAt(root)), Effect.flip);
+			assert.strictEqual(error._tag, "WorkingTreeError");
+			assert.include(error.message, "uncommitted changes in vendor/lib");
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+});
+
 describe("Git.resolveTag", () => {
 	it.live("finds the release tag on the remote", () =>
 		Effect.gen(function* () {
