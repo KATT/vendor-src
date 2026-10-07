@@ -7,6 +7,14 @@ jobs:
       - uses: ./.github/actions/prepare
       - run: pnpm build
       - run: pnpm exec vendor-src --help
+      - name: Run the packed package as a consumer would
+        run: |
+          pnpm --dir packages/vendor-src pack --out "$RUNNER_TEMP/vendor-src.tgz"
+          mkdir "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          npm init -y > /dev/null
+          npm install "$RUNNER_TEMP/vendor-src.tgz"
+          npx vendor-src --help
 
   engines_check:
     name: Engines Check
