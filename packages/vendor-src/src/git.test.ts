@@ -115,7 +115,7 @@ describe("Git.resolveTag", () => {
 
 			assert.strictEqual(tag, "lib@1.1.0");
 			assert.strictEqual(missing._tag, "TagNotFoundError");
-			assert.include(missing.message, "pass --ref to override");
+			assert.include(missing.message, "--ref <tag> --name");
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 

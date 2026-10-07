@@ -411,6 +411,45 @@ describe("vendor-src CLI", () => {
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
+	it.live("tracks the installed version of a package added by git URL", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const mirror = yield* makeUpstream(root, "mirror", [
+				{ version: "1.0.0", files: { "src/index.ts": "export const v = 1\n" } },
+				{ version: "1.1.0", files: { "src/index.ts": "export const v = 2\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* installPackage(project, "lib", "1.0.0");
+			yield* initAndCommit(project);
+
+			yield* vendorSrc(
+				project,
+				"add",
+				mirror,
+				"--ref",
+				"mirror@1.0.0",
+				"--name",
+				"lib",
+			);
+			const manifest = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.strictEqual(manifest.repos.lib?.version, "1.0.0");
+			assert.strictEqual(manifest.repos.lib?.ref, "mirror@1.0.0");
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor lib");
+			yield* vendorSrc(project, "check", "--strict");
+
+			yield* installPackage(project, "lib", "1.1.0");
+			yield* vendorSrc(project, "sync");
+			assert.strictEqual(
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
+				"export const v = 2\n",
+			);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
 	it.live("renders user errors without a stack trace", () =>
 		Effect.gen(function* () {
 			const project = yield* makeProject(yield* tempDir);
