@@ -2,7 +2,13 @@ import { Effect, FileSystem, Option, Schema } from "effect";
 import { CliError, Flag } from "effect/cli";
 
 import { repoPrefix, type Manifest } from "../manifest.ts";
-import { InstalledPackages } from "../packages.ts";
+import {
+	InstalledPackages,
+	repositoryName,
+	repositorySlug,
+	suggestPackages,
+} from "../packages.ts";
+import { unscopedName } from "../tags.ts";
 import { Project } from "../project.ts";
 import { normalizeRepositoryUrl } from "../repository.ts";
 
@@ -41,9 +47,49 @@ export const resolveInstalledSource = Effect.fn("resolveInstalledSource")(
 		const packages = yield* InstalledPackages;
 		const installed = yield* packages.packageJson(target);
 		if (Option.isNone(installed)) {
-			return yield* new CommandError({
-				message: `package ${target} is not installed; install it first so vendor-src can pin the matching tag`,
-			});
+			const workspacePackages = (yield* packages.workspaceRoots).length - 1;
+			const where =
+				workspacePackages > 0
+					? `the project root or any of its ${workspacePackages} workspace packages`
+					: "the project";
+			// Only same-scope packages can come from a repo named like `@scope/repo`;
+			// skip resolving the rest to keep this cheap in large workspaces.
+			const scope = target.startsWith("@") ? target.split("/")[0] : undefined;
+			const declared = yield* Effect.forEach(
+				yield* packages.declaredDependencies,
+				Effect.fnUntraced(function* (dependency) {
+					if (scope === undefined || !dependency.name.startsWith(`${scope}/`)) {
+						return dependency;
+					}
+					const pkg = yield* packages.packageJson(dependency.name);
+					const repository = Option.isSome(pkg)
+						? normalizeRepositoryUrl(pkg.value.repository)
+						: undefined;
+					return repository === undefined
+						? dependency
+						: { ...dependency, repository };
+				}),
+			);
+			const wantedRepo = unscopedName(target).toLowerCase();
+			const suggestions = suggestPackages(target, declared);
+			const lines = [`package ${target} is not installed in ${where}.`];
+			if (suggestions.length > 0) {
+				lines.push(
+					"Did you mean one of these dependencies?",
+					...suggestions.map(({ name, declaredIn, repository }) => {
+						const from =
+							repository !== undefined &&
+							repositoryName(repository).toLowerCase() === wantedRepo
+								? `from ${repositorySlug(repository)}; `
+								: "";
+						return `  ${name} (${from}${declaredIn.join(", ")})`;
+					}),
+				);
+			}
+			lines.push(
+				"Otherwise install it first so vendor-src can pin the matching tag.",
+			);
+			return yield* new CommandError({ message: lines.join("\n") });
 		}
 		const packageName = installed.value.name ?? target;
 		const version = installed.value.version;

@@ -13,6 +13,7 @@ import picomatch from "picomatch";
 
 import { Project } from "./project.ts";
 import { maxSemver } from "./semver.ts";
+import { unscopedName } from "./tags.ts";
 
 export const PackageRepository = Schema.Union([
 	Schema.String,
@@ -43,8 +44,116 @@ const WorkspacePackageJson = Schema.Struct({
 	),
 });
 
+const DependencyFields = Schema.Struct({
+	dependencies: Schema.optionalKey(
+		Schema.Record(Schema.String, Schema.Unknown),
+	),
+	devDependencies: Schema.optionalKey(
+		Schema.Record(Schema.String, Schema.Unknown),
+	),
+	peerDependencies: Schema.optionalKey(
+		Schema.Record(Schema.String, Schema.Unknown),
+	),
+	optionalDependencies: Schema.optionalKey(
+		Schema.Record(Schema.String, Schema.Unknown),
+	),
+});
+
 const isReadonlyArray = (value: unknown): value is ReadonlyArray<unknown> =>
 	Array.isArray(value);
+
+/** A dependency declared somewhere in the workspace. */
+export interface DeclaredDependency {
+	readonly name: string;
+	/** Project-relative directories whose package.json declares it (`.` for the root). */
+	readonly declaredIn: ReadonlyArray<string>;
+	/** Normalized git URL from the installed package.json, when known. */
+	readonly repository?: string;
+}
+
+/** Repository name from a git URL, e.g. `https://github.com/TanStack/router.git` -> `router`. */
+export const repositoryName = (url: string): string =>
+	url
+		.replace(/\.git$/, "")
+		.split(/[/:]/)
+		.filter(Boolean)
+		.pop() ?? url;
+
+/** Repository owner/name for display, e.g. `TanStack/router`. */
+export const repositorySlug = (url: string): string =>
+	url
+		.replace(/\.git$/, "")
+		.split(/[/:]/)
+		.filter(Boolean)
+		.slice(-2)
+		.join("/");
+
+function editDistance(left: string, right: string): number {
+	let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+	for (let i = 1; i <= left.length; i++) {
+		const current = [i];
+		for (let j = 1; j <= right.length; j++) {
+			current[j] = Math.min(
+				previous[j]! + 1,
+				current[j - 1]! + 1,
+				previous[j - 1]! + (left[i - 1] === right[j - 1] ? 0 : 1),
+			);
+		}
+		previous = current;
+	}
+	return previous[right.length]!;
+}
+
+const scopeOf = (name: string) =>
+	name.startsWith("@") ? name.slice(0, name.indexOf("/")) : undefined;
+
+/**
+ * Declared dependencies that look like what the user meant by `query`:
+ * packages published from a repo named like it (e.g. `@tanstack/router` ->
+ * everything from TanStack/router), names containing its unscoped part,
+ * near-miss typos, then other packages from the same npm scope.
+ */
+export function suggestPackages(
+	query: string,
+	declared: ReadonlyArray<DeclaredDependency>,
+	limit = 8,
+): DeclaredDependency[] {
+	const wanted = unscopedName(query).toLowerCase();
+	const scope = scopeOf(query)?.toLowerCase();
+	const rank = (dependency: DeclaredDependency): number | undefined => {
+		const name = dependency.name.toLowerCase();
+		if (name === query.toLowerCase()) {
+			return undefined;
+		}
+		const unscoped = unscopedName(name);
+		const sameScope = scope !== undefined && scopeOf(name) === scope;
+		if (
+			dependency.repository !== undefined &&
+			repositoryName(dependency.repository).toLowerCase() === wanted
+		) {
+			return 0;
+		}
+		if (wanted.length >= 3 && unscoped.includes(wanted)) {
+			return sameScope ? 1 : 2;
+		}
+		if (editDistance(unscoped, wanted) <= 2) {
+			return 3;
+		}
+		return sameScope ? 4 : undefined;
+	};
+	return declared
+		.flatMap((dependency) => {
+			const score = rank(dependency);
+			return score === undefined ? [] : [{ dependency, score }];
+		})
+		.toSorted(
+			(left, right) =>
+				left.score - right.score ||
+				left.dependency.name.localeCompare(right.dependency.name),
+		)
+		.slice(0, limit)
+		.map(({ dependency }) => dependency);
+}
 
 /**
  * Extract `packages:` glob entries from pnpm-workspace.yaml.
@@ -88,6 +197,11 @@ export class InstalledPackages extends Context.Service<
 		readonly packageJson: (
 			name: string,
 		) => Effect.Effect<Option.Option<InstalledPackageJson>, PlatformError>;
+		/** Every dependency declared by the root or a workspace package.json. */
+		readonly declaredDependencies: Effect.Effect<
+			ReadonlyArray<DeclaredDependency>,
+			PlatformError
+		>;
 		/** The highest version of `name` installed across workspace roots. */
 		readonly version: (
 			name: string,
@@ -222,7 +336,44 @@ export class InstalledPackages extends Context.Service<
 				return Option.map(yield* packageJson(name), (pkg) => pkg.version);
 			});
 
-			return InstalledPackages.of({ workspaceRoots, packageJson, version });
+			const declaredDependencies = Effect.gen(function* () {
+				const byName = new Map<string, string[]>();
+				for (const root of yield* workspaceRoots) {
+					const pkg = yield* readJson(
+						DependencyFields,
+						path.join(root, "package.json"),
+					).pipe(Effect.catchTag("PlatformError", () => Effect.succeedNone));
+					if (Option.isNone(pkg)) {
+						continue;
+					}
+					const dir = path.relative(project.root, root) || ".";
+					const {
+						dependencies,
+						devDependencies,
+						peerDependencies,
+						optionalDependencies,
+					} = pkg.value;
+					const names = new Set(
+						[
+							dependencies,
+							devDependencies,
+							peerDependencies,
+							optionalDependencies,
+						].flatMap((fields) => Object.keys(fields ?? {})),
+					);
+					for (const name of names) {
+						byName.set(name, [...(byName.get(name) ?? []), dir]);
+					}
+				}
+				return [...byName].map(([name, declaredIn]) => ({ name, declaredIn }));
+			}).pipe(Effect.withSpan("InstalledPackages.declaredDependencies"));
+
+			return InstalledPackages.of({
+				workspaceRoots,
+				packageJson,
+				declaredDependencies,
+				version,
+			});
 		}),
 	);
 }

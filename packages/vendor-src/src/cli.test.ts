@@ -228,7 +228,9 @@ describe("vendor-src CLI", () => {
 			]);
 			const project = yield* makeProject(path.join(root, "project"), {
 				"pnpm-workspace.yaml": "packages:\n  - apps/*\n",
-				"apps/web/package.json": "{}",
+				"apps/web/package.json": JSON.stringify({
+					dependencies: { lib: "^1.0.0" },
+				}),
 			});
 			yield* installPackage(
 				path.join(project, "apps", "web"),
@@ -237,6 +239,16 @@ describe("vendor-src CLI", () => {
 				upstream,
 			);
 			yield* initAndCommit(project);
+
+			const typo = yield* vendorSrc(project, "add", "lbi").pipe(Effect.flip);
+			assert.strictEqual(typo._tag, "UserError");
+			const output = yield* errorOutput;
+			assert.include(
+				output,
+				"package lbi is not installed in the project root or any of its 1 workspace packages.",
+			);
+			assert.include(output, "Did you mean one of these dependencies?");
+			assert.include(output, "  lib (apps/web)");
 
 			yield* vendorSrc(project, "add", "lib");
 			assert.isTrue(yield* exists(project, ".repos", "lib", "src", "index.ts"));
