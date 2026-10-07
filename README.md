@@ -224,4 +224,4 @@ See [`.github/DEVELOPMENT.md`](.github/DEVELOPMENT.md).
 
 This repository is a Vite+ monorepo. The published package is [`packages/vendor-src`](packages/vendor-src) (no `postinstall`). The workspace root dogfoods it by vendoring `effect` under [`.repos/effect`](.repos/effect).
 
-The root `README.md` and `LICENSE.md` are the sources of truth; `pnpm pack` / release copies them into `packages/vendor-src` via `scripts/sync-package-docs.mjs`.
+The root `README.md` and `LICENSE.md` are the sources of truth; `pnpm pack` / release copies them into `packages/vendor-src` via `packages/vendor-src/scripts/sync-package-docs.ts`.

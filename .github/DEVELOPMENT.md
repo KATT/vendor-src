@@ -1,9 +1,11 @@
 # Development
 
 This is a Vite+ / pnpm monorepo. The publishable CLI lives in `packages/vendor-src`.
-The workspace root dogfoods it (vendored `.repos/`, `vendor-src.json`) and intentionally owns the only `postinstall` — the published package has none.
+The workspace root dogfoods it (vendored `.repos/`, `vendor-src.json`) with the same `postinstall` that `vendor-src init` writes; the published package has no `postinstall`. Inside this repo the `vendor-src` bin is `src/bin.ts`, run directly by Node (which strips the types), so it never needs a build. `publishConfig.bin` swaps it for `dist/bin.mjs` when packing, because Node refuses to strip types under `node_modules`; releases therefore publish a `pnpm pack` tarball with `npm publish`.
 
-Root `README.md` / `LICENSE.md` are canonical. They are copied into `packages/vendor-src` on `prepack` (and before npm publish) by `scripts/sync-package-docs.mjs` so the npm tarball includes them without maintaining a second copy in git.
+Root `README.md` / `LICENSE.md` are canonical. They are copied into `packages/vendor-src` on `prepack` (and before npm publish) by `packages/vendor-src/scripts/sync-package-docs.ts` so the npm tarball includes them without maintaining a second copy in git.
+
+Scripts live in `packages/vendor-src/scripts/` and are written in TypeScript with Effect, run with plain `node`.
 
 After [forking the repo from GitHub](https://help.github.com/articles/fork-a-repo) and [installing pnpm](https://pnpm.io/installation):
 
