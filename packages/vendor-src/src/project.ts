@@ -16,14 +16,6 @@ import {
 	type AgentsRepoLine,
 } from "./agentsMd.ts";
 import {
-	detectIndent,
-	mergeIgnoreFile,
-	mergeOxfmtConfig,
-	mergeVsCodeSettings,
-	OPTIONAL_IGNORE_FILES,
-	OXFMT_CONFIG_FILE,
-} from "./editorConfig.ts";
-import {
 	decodeManifest,
 	encodeManifest,
 	MANIFEST_FILENAME,
@@ -71,6 +63,8 @@ const LEGACY_HOOKS = ["vendor-src check --sync", "vendor-src sync"];
 /** A `vendor-src check` / `sync` call, with its flags, inside a longer script. */
 const OWN_HOOK = /vendor-src (?:check|sync)(?: --[\w-]+)*/;
 
+const detectIndent = (text: string) => text.match(/\n([ \t]+)"/)?.[1] ?? "\t";
+
 const CheckoutPackageJson = Schema.fromJsonString(
 	Schema.Struct({ version: Schema.optionalKey(Schema.String) }),
 );
@@ -115,10 +109,6 @@ export class Project extends Context.Service<
 		readonly writeAgentsMd: (
 			manifest: Manifest,
 		) => Effect.Effect<ChangedFiles, PlatformError>;
-		/** Keep formatters, linters, and editors out of the vendor dir. */
-		readonly writeEditorIgnores: (
-			manifest: Manifest,
-		) => Effect.Effect<ChangedFiles, ConfigFileError | PlatformError>;
 		/** The `version` in `{path}/package.json` inside a checkout, if readable. */
 		readonly checkoutPackageVersion: (
 			path: string,
@@ -182,25 +172,6 @@ export class Project extends Context.Service<
 			});
 			yield* fs.writeFileString(resolve(file), contents);
 			return [file];
-		});
-
-		/** Merge a JSON(C) config file, writing only when the contents change. */
-		const mergeConfig = Effect.fnUntraced(function* (
-			file: string,
-			merge: (existing: string | undefined) => string,
-		) {
-			const existing = Option.getOrUndefined(
-				yield* readOptional(resolve(file)),
-			);
-			const merged = yield* Effect.try({
-				try: () => merge(existing),
-				catch: (cause) =>
-					new ConfigFileError({
-						path: file,
-						reason: cause instanceof Error ? cause.message : String(cause),
-					}),
-			});
-			return yield* writeIfChanged(file, merged);
 		});
 
 		const findManifest = readOptional(resolve(MANIFEST_FILENAME)).pipe(
@@ -284,37 +255,6 @@ export class Project extends Context.Service<
 			return changed;
 		});
 
-		const writeEditorIgnores = Effect.fn("Project.writeEditorIgnores")(
-			function* (manifest: Manifest) {
-				const dir = vendorDir(manifest);
-				const changed: string[] = [];
-
-				for (const file of OPTIONAL_IGNORE_FILES) {
-					const existing = yield* readOptional(resolve(file));
-					if (Option.isSome(existing)) {
-						changed.push(
-							...(yield* writeIfChanged(
-								file,
-								mergeIgnoreFile(existing.value, dir),
-							)),
-						);
-					}
-				}
-
-				changed.push(
-					...(yield* mergeConfig(OXFMT_CONFIG_FILE, (text) =>
-						mergeOxfmtConfig(text, dir),
-					)),
-				);
-				changed.push(
-					...(yield* mergeConfig(".vscode/settings.json", (text) =>
-						mergeVsCodeSettings(text, dir),
-					)),
-				);
-				return changed;
-			},
-		);
-
 		const ensurePostinstall = Effect.gen(function* () {
 			const raw = yield* fs.readFileString(resolve("package.json"));
 			const json = yield* Schema.decodeEffect(JsonObject)(raw);
@@ -364,7 +304,6 @@ export class Project extends Context.Service<
 			readManifest,
 			writeManifest,
 			writeAgentsMd,
-			writeEditorIgnores,
 			checkoutPackageVersion,
 			ensurePostinstall,
 		});

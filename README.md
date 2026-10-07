@@ -33,9 +33,8 @@ Set up vendor-src in this repo:
 2. Run: pnpm exec vendor-src init
    (defaults: vendor dir .repos, managed section in the root AGENTS.md;
    pass --dir <dir> and/or --no-root-agents-md to change them)
-   It prints every file it wrote. Review the diff — do not let existing
-   oxfmt / editor settings get wiped — then commit them together with the
-   install (package.json / lockfile / catalog).
+   It prints every file it wrote and the next steps; follow them. Commit the
+   files together with the install (package.json / lockfile / catalog).
 3. If .repos/<name> (or your configured dir) already exists from a manual
    subtree (and there is no vendor-src.json entry), remove it first:
    git rm -rq .repos/<name> && git commit -m "Remove .repos/<name>"
@@ -45,9 +44,9 @@ Set up vendor-src in this repo:
    the working tree must be clean)
 5. add commits the subtree itself and prints the files left to commit
    (vendor-src.json and the AGENTS.md files). Commit them.
-6. Never run formatters/linters on the vendor dir (default .repos/**). init
-   already wrote .oxfmtrc.json ignorePatterns and editor excludes for that dir.
-   If you add a new tool, exclude it before the first run.
+6. Never run formatters/linters on the vendor dir (default .repos/**).
+   Exclude it from every formatter, linter, and editor the repo uses, as init
+   suggests, before they next run.
 7. Prefer reading .repos/<name> as read-only reference. Do not import from
    .repos/ — keep importing the normal npm package.
 8. init adds a postinstall script that runs vendor-src check, which warns
@@ -88,14 +87,12 @@ Commands work from any directory inside the project. Every command except `init`
 - creates `vendor-src.json` with `dir` (default `.repos`, or `--dir`) and `rootAgentsMd` (default `true`, or `--no-root-agents-md`)
 - maintains a short managed section in root `AGENTS.md` (follows symlinks, e.g. to `README.md`) unless `rootAgentsMd` is `false`
 - writes `{dir}/AGENTS.md` with fuller guidance for agents working inside that tree
-- writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `{dir}/`
-- if `.prettierignore` / `.eslintignore` already exist, merges `{dir}/` into them too (does not create those files)
-- merges editor excludes into `.vscode/settings.json`
 - sets the `postinstall` script to `vendor-src check`. If `package.json` already has a different `postinstall`, `init` leaves it untouched and prints a warning with a script that runs both, e.g. `"postinstall": "husky && vendor-src check"`
+- prints next steps, including keeping `{dir}/` out of your formatters, linters, and editor; vendor-src doesn't edit those configs because it can't know which tools you use
 
 `check` is built for `postinstall`: it only compares `vendor-src.json` with the installed `package.json` versions, so it is fast, never runs git or touches the network, and never fails the install (add `--strict` to fail). When it reports drift, run `vendor-src sync`.
 
-Re-running `init` keeps the existing `vendor-src.json` and re-applies the rest, so it is also the way to restore deleted ignores or the `postinstall` hook, or to apply a `dir` you changed by hand. It refuses `--dir` / `--root-agents-md` values that contradict the existing file; edit `vendor-src.json` instead.
+Re-running `init` keeps the existing `vendor-src.json` and re-applies the rest, so it is also the way to restore the `postinstall` hook, or to apply a `dir` you changed by hand. It refuses `--dir` / `--root-agents-md` values that contradict the existing file; edit `vendor-src.json` instead.
 
 `add`, `sync`, and `remove` keep `vendor-src.json` and both AGENTS.md files in step with the vendored repos.
 
@@ -103,7 +100,7 @@ Re-running `init` keeps the existing `vendor-src.json` and re-applies the rest, 
 
 Vendored trees are large upstream checkouts. A single repo-wide formatter run without excludes can rewrite thousands of files.
 
-`vendor-src init` writes the ignores for you (using the configured `dir`). If you are wiring tooling manually, copy/paste (replace `.repos` if you changed `dir`):
+`vendor-src init` prints what to exclude but doesn't edit tool configs. For example (replace `.repos` if you changed `dir`):
 
 ```json
 // .oxfmtrc.json
@@ -190,7 +187,7 @@ pnpm exec vendor-src add @tanstack/react-router   # added to .repos/router; no s
 
 ## Manifest
 
-`dir` is the folder for checkouts and is required. `vendor-src init` writes `.repos` unless you pass `--dir`. AGENTS.md text, oxfmt ignores, and editor excludes all follow this value; after changing it by hand, move the checkouts and re-run `vendor-src init`.
+`dir` is the folder for checkouts and is required. `vendor-src init` writes `.repos` unless you pass `--dir`. The AGENTS.md text follows this value; after changing it by hand, move the checkouts and re-run `vendor-src init`.
 
 `rootAgentsMd` controls whether vendor-src maintains its managed section in the project-root `AGENTS.md`, and is also required. `vendor-src init` writes `true` unless you pass `--no-root-agents-md`. Set it to `false` to keep the root `AGENTS.md` untouched; an existing managed section is removed on the next `init` / `add` / `sync` / `remove`. `{dir}/AGENTS.md` is always written.
 

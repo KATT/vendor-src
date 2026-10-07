@@ -8,11 +8,6 @@ export {
 } from "./agentsMd.ts";
 export { layer, run, vendorSrc } from "./cli.ts";
 export {
-	mergeIgnoreFile,
-	mergeOxfmtConfig,
-	mergeVsCodeSettings,
-} from "./editorConfig.ts";
-export {
 	Git,
 	GitError,
 	TagNotFoundError,
