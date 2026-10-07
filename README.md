@@ -23,7 +23,8 @@ pnpm exec vendor-src add effect
 ```text
 Set up vendor-src in this repo:
 1. Install vendor-src as a root devDependency and run `vendor-src init`.
-2. Do the next steps it prints.
+2. Exclude `.repos/` from the formatters, linters, and editor settings this
+   repo uses, then commit.
 3. Suggest a few dependencies worth vendoring: the frameworks and libraries
    this code leans on most, especially new or fast-moving ones. Say why for
    each, and ask me which to add.
