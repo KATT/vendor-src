@@ -13,7 +13,7 @@ import {
 } from "./readme.ts";
 
 describe("README command reference", () => {
-	it.effect("matches the CLI help (run `pnpm docs` to update)", () =>
+	it.effect("matches the CLI help (run `pnpm readme` to update)", () =>
 		Effect.gen(function* () {
 			const readme = readFileSync(
 				join(import.meta.dirname, "..", "..", "..", "README.md"),

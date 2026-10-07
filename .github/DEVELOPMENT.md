@@ -1,9 +1,11 @@
 # Development
 
 This is a Vite+ / pnpm monorepo. The publishable CLI lives in `packages/vendor-src`.
-The workspace root dogfoods it (vendored `.repos/`, `vendor-src.json`) and intentionally owns the only `postinstall` — the published package has none.
+The workspace root dogfoods it (vendored `.repos/`, `vendor-src.json`) with the same `"postinstall": "vendor-src check"` that `vendor-src init` writes; the published package has no `postinstall`. Inside this repo the `vendor-src` bin runs `src/bin.ts` directly (Node strips the types), so it never needs a build; the published package runs `dist/`.
 
-Root `README.md` / `LICENSE.md` are canonical. They are copied into `packages/vendor-src` on `prepack` (and before npm publish) by `scripts/sync-package-docs.mjs` so the npm tarball includes them without maintaining a second copy in git.
+Root `README.md` / `LICENSE.md` are canonical. They are copied into `packages/vendor-src` on `prepack` (and before npm publish) by `packages/vendor-src/scripts/sync-package-docs.ts` so the npm tarball includes them without maintaining a second copy in git.
+
+Scripts live in `packages/vendor-src/scripts/` and are written in TypeScript with Effect, run with plain `node`.
 
 After [forking the repo from GitHub](https://help.github.com/articles/fork-a-repo) and [installing pnpm](https://pnpm.io/installation):
 
@@ -57,7 +59,7 @@ Effect code is tested with [`@effect/vitest`](https://github.com/Effect-TS/effec
 The command reference in `README.md` (between the `commands:start` / `commands:end` markers) is generated from the CLI's `--help`. After changing a command, its flags, or their descriptions, regenerate it; `src/readme.test.ts` fails when it is out of date:
 
 ```shell
-pnpm docs
+pnpm readme
 ```
 
 ## Type Checking

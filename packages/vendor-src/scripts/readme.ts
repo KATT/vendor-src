@@ -3,27 +3,34 @@
  * Regenerate the command reference in the root README.md from the CLI's help.
  * `src/readme.test.ts` fails when the committed README is out of date.
  */
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-
-import { NodeServices } from "@effect/platform-node";
-import { Effect } from "effect";
+import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { Console, Effect, FileSystem, Path } from "effect";
 
 import {
 	renderCommandReference,
 	replaceCommandReference,
 } from "../src/readme.ts";
 
-const readmePath = join(import.meta.dirname, "..", "..", "..", "README.md");
+Effect.gen(function* () {
+	const fs = yield* FileSystem.FileSystem;
+	const path = yield* Path.Path;
+	const readmePath = path.join(
+		import.meta.dirname,
+		"..",
+		"..",
+		"..",
+		"README.md",
+	);
 
-const reference = await Effect.runPromise(
-	renderCommandReference.pipe(Effect.provide(NodeServices.layer)),
-);
-const readme = readFileSync(readmePath, "utf8");
-const updated = replaceCommandReference(readme, reference);
-if (updated === readme) {
-	console.log("README.md command reference is up to date");
-} else {
-	writeFileSync(readmePath, updated);
-	console.log("updated README.md command reference");
-}
+	const readme = yield* fs.readFileString(readmePath);
+	const updated = replaceCommandReference(
+		readme,
+		yield* renderCommandReference,
+	);
+	if (updated === readme) {
+		yield* Console.log("README.md command reference is up to date");
+	} else {
+		yield* fs.writeFileString(readmePath, updated);
+		yield* Console.log("updated README.md command reference");
+	}
+}).pipe(Effect.provide(NodeServices.layer), NodeRuntime.runMain);

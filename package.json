@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "vp -C packages/vendor-src pack",
-		"docs": "node packages/vendor-src/scripts/readme.ts",
+		"readme": "node packages/vendor-src/scripts/readme.ts",
 		"format": "vp fmt",
 		"format:check": "vp fmt --check",
 		"lint": "vp lint --disable-nested-config --ignore-pattern=.repos/** --ignore-pattern=**/node_modules/**",
@@ -14,7 +14,7 @@
 		"test": "vp -C packages/vendor-src test",
 		"typecheck": "pnpm --filter vendor-src typecheck",
 		"check": "vp check",
-		"postinstall": "node ./scripts/workspace-check.mjs"
+		"postinstall": "vendor-src check"
 	},
 	"devDependencies": {
 		"@release-it/conventional-changelog": "12.0.2",

@@ -39,7 +39,7 @@
 		"./schema.json": "./schema/vendor-src.schema.json"
 	},
 	"scripts": {
-		"prepack": "node ../../scripts/sync-package-docs.mjs",
+		"prepack": "node scripts/sync-package-docs.ts",
 		"build": "vp pack",
 		"test": "vp test",
 		"typecheck": "tsc"

@@ -6,7 +6,7 @@
 	},
 	"github": { "release": true, "releaseName": "v${version}" },
 	"hooks": {
-		"before:npm": "pnpm --dir ../.. build && node ../../scripts/sync-package-docs.mjs",
+		"before:npm": "pnpm --dir ../.. build && node scripts/sync-package-docs.ts",
 		"after:git:release": "npm publish"
 	},
 	"npm": { "publish": false, "skipChecks": true },

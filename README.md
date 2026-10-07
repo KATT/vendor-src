@@ -158,4 +158,4 @@ Installed versions are read from the project root and every workspace package; w
 
 ## Development
 
-See [`.github/DEVELOPMENT.md`](.github/DEVELOPMENT.md). The published package lives in [`packages/vendor-src`](packages/vendor-src); this repo dogfoods it by vendoring `effect` under [`.repos/effect`](.repos/effect). The command reference above is generated from the CLI with `pnpm docs`.
+See [`.github/DEVELOPMENT.md`](.github/DEVELOPMENT.md). The published package lives in [`packages/vendor-src`](packages/vendor-src); this repo dogfoods it by vendoring `effect` under [`.repos/effect`](.repos/effect). The command reference above is generated from the CLI with `pnpm readme`.
