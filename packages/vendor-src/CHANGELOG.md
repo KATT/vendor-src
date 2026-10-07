@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.2](https://github.com/KATT/vendor-src/compare/0.15.1...0.15.2) (2026-10-07)
+
+- spell out the setup steps in the agent prompt ([#48](https://github.com/KATT/vendor-src/issues/48)) ([646b6af](https://github.com/KATT/vendor-src/commit/646b6afc651fce5292d762018ed21d90c1476c36))
+
 ## [0.15.1](https://github.com/KATT/vendor-src/compare/0.15.0...0.15.1) (2026-10-07)
 
 ### Features
