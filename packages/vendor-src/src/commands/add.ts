@@ -76,8 +76,7 @@ export const addCommand = Command.make(
 			return yield* new CommandError({
 				message:
 					`${prefix} already exists on disk but is not in vendor-src.json.\n` +
-					`Claim it without re-fetching:\n  vendor-src adopt ${source.packageName}\n` +
-					`Or remove and re-add:\n  git rm -rq ${prefix} && git commit -m "Remove ${prefix}"\n  vendor-src add ${source.packageName}`,
+					`Remove it, then add it again:\n  git rm -rq ${prefix} && git commit -m "Remove ${prefix}"\n  vendor-src add ${source.packageName}`,
 			});
 		}
 

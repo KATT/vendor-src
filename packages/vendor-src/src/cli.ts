@@ -2,7 +2,6 @@ import { Effect, Layer } from "effect";
 import { Command } from "effect/cli";
 
 import { addCommand } from "./commands/add.ts";
-import { adoptCommand } from "./commands/adopt.ts";
 import { checkCommand } from "./commands/check.ts";
 import { listCommand } from "./commands/list.ts";
 import { removeCommand } from "./commands/remove.ts";
@@ -19,7 +18,6 @@ export const vendorSrc = Command.make("vendor-src").pipe(
 	),
 	Command.withSubcommands([
 		addCommand,
-		adoptCommand,
 		checkCommand,
 		syncCommand,
 		listCommand,

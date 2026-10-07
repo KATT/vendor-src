@@ -33,11 +33,9 @@ Set up vendor-src in this repo:
 2. Ensure the git working tree is clean and has at least one commit.
    Commit the install (package.json / lockfile / catalog) before continuing.
 3. If .repos/<name> (or your configured dir) already exists from a manual subtree (and there is no
-   vendor-src.json entry), claim it:
-   pnpm exec vendor-src adopt <package>
-   Or remove and re-add:
+   vendor-src.json entry), remove it first:
    git rm -rq .repos/<name> && git commit -m "Remove .repos/<name>"
-4. Otherwise run: pnpm exec vendor-src add <package>
+4. Run: pnpm exec vendor-src add <package>
    Example: pnpm exec vendor-src add effect
    (package must already be installed so the matching git tag can be resolved)
 5. Commit vendor-src.json, AGENTS.md (or README.md if AGENTS.md symlinks to it;
@@ -59,10 +57,6 @@ Set up vendor-src in this repo:
 ```shell
 # Vendor the source for an installed dependency at its matching git tag
 pnpm exec vendor-src add effect
-
-# Claim an existing .repos/<name> checkout (manual subtree) without re-fetching
-pnpm exec vendor-src adopt effect
-
 # Offline check after installs (exit 0 with a warning on drift)
 pnpm exec vendor-src check
 
@@ -76,9 +70,9 @@ pnpm exec vendor-src list   # alias: ls
 pnpm exec vendor-src remove effect   # alias: rm
 ```
 
-Commands work from any directory inside the project. `add`, `adopt`, `sync`, and `remove` require at least one commit and a clean working tree.
+Commands work from any directory inside the project. `add`, `sync`, and `remove` require at least one commit and a clean working tree.
 
-`add` / `adopt` also:
+`add` also:
 
 - creates `vendor-src.json` with `dir` set to `.repos` and `rootAgentsMd` set to `true` if it does not exist yet (edit either to change the defaults)
 - maintains a short managed section in root `AGENTS.md` (follows symlinks, e.g. to `README.md`) unless `rootAgentsMd` is `false`
@@ -158,7 +152,7 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 
 `dir` is the folder for checkouts and is required. vendor-src writes `.repos` when it creates the manifest; set any other folder name you prefer. AGENTS.md text, oxfmt ignores, and editor excludes all follow this value.
 
-`rootAgentsMd` controls whether vendor-src maintains its managed section in the project-root `AGENTS.md`, and is also required. vendor-src writes `true` when it creates the manifest; set it to `false` to keep the root `AGENTS.md` untouched (an existing managed section is removed on the next `add` / `adopt` / `sync` / `remove`). `{dir}/AGENTS.md` is always written.
+`rootAgentsMd` controls whether vendor-src maintains its managed section in the project-root `AGENTS.md`, and is also required. vendor-src writes `true` when it creates the manifest; set it to `false` to keep the root `AGENTS.md` untouched (an existing managed section is removed on the next `add` / `sync` / `remove`). `{dir}/AGENTS.md` is always written.
 
 ```json
 {

@@ -211,6 +211,30 @@ describe("vendor-src CLI", () => {
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
+	it.live("refuses to add over an untracked checkout", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "src/index.ts": "export {}\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"), {
+				".repos/lib/src/index.ts": "export {}\n",
+			});
+			yield* installPackage(project, "lib", "1.0.0", upstream);
+
+			const error = yield* vendorSrc(project, "add", "lib").pipe(Effect.flip);
+			assert.strictEqual(error._tag, "UserError");
+			const output = yield* errorOutput;
+			assert.include(
+				output,
+				".repos/lib already exists on disk but is not in vendor-src.json",
+			);
+			assert.include(output, "git rm -rq .repos/lib");
+			assert.include(output, "vendor-src add lib");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
 	it.live("fails outside a project only when a subcommand runs", () =>
 		Effect.gen(function* () {
 			const dir = yield* tempDir;
