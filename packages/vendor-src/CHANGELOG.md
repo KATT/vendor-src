@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.0](https://github.com/KATT/vendor-src/compare/0.10.1...0.11.0) (2026-10-07)
+
+### Features
+
+- one checkout per repo for packages from the same monorepo ([#34](https://github.com/KATT/vendor-src/issues/34)) ([d9745e8](https://github.com/KATT/vendor-src/commit/d9745e8835ba11885059b9333db6d05393819e8e))
+
 ## [0.10.1](https://github.com/KATT/vendor-src/compare/0.10.0...0.10.1) (2026-10-07)
 
 ### Bug Fixes
