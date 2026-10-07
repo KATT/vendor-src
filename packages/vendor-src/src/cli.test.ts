@@ -552,8 +552,11 @@ describe("vendor-src init", () => {
 			const first = yield* logOutput;
 			assert.include(first, "Created vendor-src.json");
 			assert.include(first, "  package.json");
-			assert.include(first, "Run `vendor-src add <package>`");
-			assert.include(first, "Exclude .repos/ from every formatter and linter");
+			assert.include(
+				first,
+				"  1. Exclude .repos/ from every formatter and linter",
+			);
+			assert.include(first, "  3. Commit, so `vendor-src add` starts");
 			git(project, "add", "-A");
 			git(project, "commit", "-qm", "init vendor-src");
 
