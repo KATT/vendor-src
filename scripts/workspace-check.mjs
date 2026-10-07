@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Workspace dogfood: run `vendor-src sync` after install when the package is built.
+ * Workspace dogfood: run `vendor-src check --sync` after install when the package is built.
  * The published package intentionally has no postinstall.
  */
 import { spawnSync } from "node:child_process";
@@ -15,7 +15,7 @@ if (!existsSync(localBin)) {
 	process.exit(0);
 }
 
-const result = spawnSync(process.execPath, [localBin, "sync"], {
+const result = spawnSync(process.execPath, [localBin, "check", "--sync"], {
 	cwd: root,
 	stdio: "inherit",
 });
