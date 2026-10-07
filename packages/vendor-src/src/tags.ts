@@ -42,7 +42,9 @@ export function pickTag(
 			tag === version ||
 			tag === `v${version}` ||
 			tag.endsWith(`@${version}`) ||
-			tag.endsWith(`@v${version}`),
+			tag.endsWith(`@v${version}`) ||
+			tag.endsWith(`/${version}`) ||
+			tag.endsWith(`/v${version}`),
 	);
 
 	if (prefixMatches.length === 0) {
@@ -60,11 +62,8 @@ export function pickTag(
 }
 
 function extractVersion(tag: string): string | undefined {
-	const at = tag.lastIndexOf("@");
-	if (at !== -1) {
-		return tag.slice(at + 1).replace(/^v/, "");
-	}
-	return tag.replace(/^v/, "");
+	const separator = Math.max(tag.lastIndexOf("@"), tag.lastIndexOf("/"));
+	return tag.slice(separator + 1).replace(/^v/, "");
 }
 
 /** Parse `git ls-remote --tags` stdout into tag names (peeled ^{} refs dropped). */

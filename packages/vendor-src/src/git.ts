@@ -40,7 +40,7 @@ export class TagNotFoundError extends Schema.TaggedError<TagNotFoundError>()(
 	},
 ) {
 	override get message() {
-		return `no tag matching ${this.packageName}@${this.version} in ${this.url}; pass --ref to override`;
+		return `no tag matching ${this.packageName}@${this.version} in ${this.url}. Pick a tag with \`vendor-src add ${this.packageName} --ref <tag>\`, or vendor a repository that tags its releases with \`vendor-src add <git-url> --ref <tag> --name ${this.packageName}\``;
 	}
 }
 

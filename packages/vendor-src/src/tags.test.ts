@@ -43,6 +43,12 @@ describe(pickTag, () => {
 		).toBe("effect@4.0.1");
 	});
 
+	it("matches prefix/version tags", () => {
+		expect(pickTag(["npm/1.45.0", "npm/1.46.0"], "convex", "1.46.0")).toBe(
+			"npm/1.46.0",
+		);
+	});
+
 	it("returns undefined when nothing matches", () => {
 		expect(pickTag(["other@1.0.0"], "effect", "4.0.1")).toBeUndefined();
 	});

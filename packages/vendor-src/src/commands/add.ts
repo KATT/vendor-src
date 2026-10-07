@@ -8,6 +8,7 @@ import {
 	repoPrefix,
 	setRepo,
 } from "../manifest.ts";
+import { InstalledPackages } from "../packages.ts";
 import { Project } from "../project.ts";
 import { pruneIgnoredPaths } from "../prune.ts";
 import {
@@ -51,22 +52,14 @@ export const addCommand = Command.make(
 	Effect.fn("vendor-src add")(function* ({ target, name, ref, ignore }) {
 		const project = yield* Project;
 		const git = yield* Git;
+		const packages = yield* InstalledPackages;
 		const manifest = yield* project.readManifest;
 		yield* git.ensureReady;
 
 		const fromGitUrl = isGitUrl(target);
 		const source: InstalledSource = fromGitUrl
-			? {
-					packageName: Option.getOrElse(name, () =>
-						defaultVendorName(
-							target
-								.replace(/\.git$/, "")
-								.split(/[/:]/)
-								.pop() || "repo",
-						),
-					),
-					url: normalizeRepositoryUrl(target) ?? target,
-					version: yield* Option.match(ref, {
+			? yield* Effect.gen(function* () {
+					const gitRef = yield* Option.match(ref, {
 						onNone: () =>
 							Effect.fail(
 								new CommandError({
@@ -74,8 +67,24 @@ export const addCommand = Command.make(
 								}),
 							),
 						onSome: Effect.succeed,
-					}),
-				}
+					});
+					const packageName = Option.getOrElse(name, () =>
+						defaultVendorName(
+							target
+								.replace(/\.git$/, "")
+								.split(/[/:]/)
+								.pop() || "repo",
+						),
+					);
+					// When --name is an installed package, pin its installed version so
+					// `check` and `sync` track it like any other package.
+					const installed = yield* packages.version(packageName);
+					return {
+						packageName,
+						url: normalizeRepositoryUrl(target) ?? target,
+						version: Option.getOrElse(installed, () => gitRef),
+					};
+				})
 			: yield* resolveInstalledSource(target);
 
 		yield* ensurePackageNotVendored(manifest, source.packageName);
