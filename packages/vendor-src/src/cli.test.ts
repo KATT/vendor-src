@@ -68,7 +68,7 @@ describe("vendor-src CLI", () => {
 			const cwd = path.join(project, "src");
 
 			yield* vendorSrc(cwd, "init");
-			assert.include(yield* readFile(project, ".oxfmtrc.json"), '".repos/"');
+			assert.isFalse(yield* exists(project, ".oxfmtrc.json"));
 			assert.include(
 				yield* readFile(project, "package.json"),
 				'"postinstall": "vendor-src check"',
@@ -505,11 +505,7 @@ describe("vendor-src init", () => {
 				"<!-- vendor-src:start -->",
 			);
 			assert.isTrue(yield* exists(project, ".repos", "AGENTS.md"));
-			assert.include(yield* readFile(project, ".oxfmtrc.json"), '".repos/"');
-			assert.include(
-				yield* readFile(project, ".vscode", "settings.json"),
-				'".repos/**": true',
-			);
+			assert.isFalse(yield* exists(project, ".vscode"));
 			assert.include(
 				yield* readFile(project, "package.json"),
 				'"postinstall": "vendor-src check"',
@@ -517,7 +513,8 @@ describe("vendor-src init", () => {
 			const first = yield* logOutput;
 			assert.include(first, "Created vendor-src.json");
 			assert.include(first, "  package.json");
-			assert.include(first, "run `vendor-src add <package>`");
+			assert.include(first, "Run `vendor-src add <package>`");
+			assert.include(first, "Exclude .repos/ from every formatter and linter");
 			git(project, "add", "-A");
 			git(project, "commit", "-qm", "init vendor-src");
 
@@ -568,7 +565,10 @@ describe("vendor-src init", () => {
 			assert.isFalse(manifest.rootAgentsMd);
 			assert.isFalse(yield* exists(project, "AGENTS.md"));
 			assert.isTrue(yield* exists(project, "vendor", "AGENTS.md"));
-			assert.include(yield* readFile(project, ".oxfmtrc.json"), '"vendor/"');
+			assert.include(
+				yield* logOutput,
+				"Exclude vendor/ from every formatter and linter",
+			);
 		}).pipe(Effect.provide(TestLayer)),
 	);
 

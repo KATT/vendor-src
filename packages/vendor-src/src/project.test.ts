@@ -198,46 +198,6 @@ describe("Project.writeAgentsMd", () => {
 	);
 });
 
-describe("Project.writeEditorIgnores", () => {
-	it.effect(
-		"merges oxfmt + VS Code config and only touches existing legacy ignore files",
-		() =>
-			Effect.gen(function* () {
-				const root = yield* makeProject(yield* tempDir, {
-					".prettierignore": "coverage/\n",
-				});
-				yield* withProject(
-					root,
-					Project.use((project) => project.writeEditorIgnores(manifest)),
-				);
-				assert.strictEqual(
-					yield* readFile(root, ".prettierignore"),
-					"coverage/\n.repos/\n",
-				);
-				assert.isFalse(yield* exists(root, ".eslintignore"));
-				assert.include(yield* readFile(root, ".oxfmtrc.json"), '".repos/"');
-				assert.include(
-					yield* readFile(root, ".vscode", "settings.json"),
-					'".repos/**": true',
-				);
-			}).pipe(Effect.provide(NodeServices.layer)),
-	);
-
-	it.effect("reports invalid JSONC with the file name", () =>
-		Effect.gen(function* () {
-			const root = yield* makeProject(yield* tempDir, {
-				".vscode/settings.json": "{ not json",
-			});
-			const error = yield* withProject(
-				root,
-				Project.use((project) => project.writeEditorIgnores(manifest)),
-			).pipe(Effect.flip);
-			assert.strictEqual(error._tag, "ConfigFileError");
-			assert.include(error.message, ".vscode/settings.json is not valid");
-		}).pipe(Effect.provide(NodeServices.layer)),
-	);
-});
-
 describe("Project.ensurePostinstall", () => {
 	const packageJson = (scripts: string) =>
 		`{\n  "name": "app",\n  "scripts": {\n${scripts}\n  },\n  "private": true\n}\n`;
