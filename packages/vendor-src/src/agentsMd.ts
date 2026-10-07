@@ -124,3 +124,16 @@ export function upsertAgentsBlock(
 	const trimmed = existing.replace(/\s*$/, "");
 	return `${trimmed}\n\n${block}\n`;
 }
+
+/** Strip the managed vendor-src block from AGENTS.md content, if present. */
+export function removeAgentsBlock(existing: string): string {
+	const start = existing.indexOf(AGENTS_START);
+	const end = existing.indexOf(AGENTS_END);
+	if (start === -1 || end === -1 || end < start) {
+		return existing;
+	}
+	const before = existing.slice(0, start).replace(/\s*$/, "");
+	const after = existing.slice(end + AGENTS_END.length).replace(/^\s*/, "");
+	const joined = [before, after].filter((part) => part.length > 0).join("\n\n");
+	return joined.length === 0 ? "" : `${joined.replace(/\s*$/, "")}\n`;
+}

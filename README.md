@@ -40,7 +40,8 @@ Set up vendor-src in this repo:
 4. Otherwise run: pnpm exec vendor-src add <package>
    Example: pnpm exec vendor-src add effect
    (package must already be installed so the matching git tag can be resolved)
-5. Commit vendor-src.json, AGENTS.md (or README.md if AGENTS.md symlinks to it),
+5. Commit vendor-src.json, AGENTS.md (or README.md if AGENTS.md symlinks to it;
+   skipped when vendor-src.json has "rootAgentsMd": false),
    {dir}/AGENTS.md, .oxfmtrc.json / editor ignores if changed, package.json
    (postinstall), and the subtree commit vendor-src created. Review diffs: do
    not let oxfmt / ignores get wiped.
@@ -79,8 +80,8 @@ Commands work from any directory inside the project. `add`, `adopt`, `sync`, and
 
 `add` / `adopt` also:
 
-- creates `vendor-src.json` with `dir` set to `.repos` if it does not exist yet (edit `dir` to use another folder)
-- maintains a short managed section in root `AGENTS.md` (follows symlinks, e.g. to `README.md`)
+- creates `vendor-src.json` with `dir` set to `.repos` and `rootAgentsMd` set to `true` if it does not exist yet (edit either to change the defaults)
+- maintains a short managed section in root `AGENTS.md` (follows symlinks, e.g. to `README.md`) unless `rootAgentsMd` is `false`
 - writes `{dir}/AGENTS.md` with fuller guidance for agents working inside that tree
 - writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `{dir}/`
 - if `.prettierignore` / `.eslintignore` already exist, merges `{dir}/` into them too (does not create those files)
@@ -132,6 +133,7 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 {
 	"$schema": "https://unpkg.com/vendor-src/schema.json",
 	"dir": ".repos",
+	"rootAgentsMd": true,
 	"repos": {
 		"effect": {
 			"package": "effect",
@@ -156,10 +158,13 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 
 `dir` is the folder for checkouts and is required. vendor-src writes `.repos` when it creates the manifest; set any other folder name you prefer. AGENTS.md text, oxfmt ignores, and editor excludes all follow this value.
 
+`rootAgentsMd` controls whether vendor-src maintains its managed section in the project-root `AGENTS.md`, and is also required. vendor-src writes `true` when it creates the manifest; set it to `false` to keep the root `AGENTS.md` untouched (an existing managed section is removed on the next `add` / `adopt` / `sync` / `remove`). `{dir}/AGENTS.md` is always written.
+
 ```json
 {
 	"$schema": "https://unpkg.com/vendor-src/schema.json",
 	"dir": ".repos",
+	"rootAgentsMd": true,
 	"repos": {
 		"effect": {
 			"package": "effect",

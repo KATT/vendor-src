@@ -30,12 +30,14 @@ describe("decodeManifest", () => {
 			const manifest = yield* decodeManifest(
 				JSON.stringify({
 					dir: "vendor",
+					rootAgentsMd: false,
 					ignore: ["docs/**"],
 					repos: { effect: { ...effect, ignore: ["scratchpad"] } },
 				}),
 			);
 			assert.strictEqual(manifest.$schema, MANIFEST_SCHEMA_URL);
 			assert.strictEqual(manifest.dir, "vendor");
+			assert.isFalse(manifest.rootAgentsMd);
 			assert.notProperty(manifest, "ignore");
 			assert.deepStrictEqual(manifest.repos.effect?.ignore, ["scratchpad"]);
 		}),
@@ -43,11 +45,21 @@ describe("decodeManifest", () => {
 
 	it.effect("requires dir", () =>
 		Effect.gen(function* () {
-			const error = yield* decodeManifest(JSON.stringify({ repos: {} })).pipe(
-				Effect.flip,
-			);
+			const error = yield* decodeManifest(
+				JSON.stringify({ rootAgentsMd: true, repos: {} }),
+			).pipe(Effect.flip);
 			assert.include(error.message, "vendor-src.json is invalid");
 			assert.include(error.message, "dir");
+		}),
+	);
+
+	it.effect("requires rootAgentsMd", () =>
+		Effect.gen(function* () {
+			const error = yield* decodeManifest(
+				JSON.stringify({ dir: ".repos", repos: {} }),
+			).pipe(Effect.flip);
+			assert.include(error.message, "vendor-src.json is invalid");
+			assert.include(error.message, "rootAgentsMd");
 		}),
 	);
 
@@ -56,6 +68,7 @@ describe("decodeManifest", () => {
 			const error = yield* decodeManifest(
 				JSON.stringify({
 					dir: ".repos",
+					rootAgentsMd: true,
 					repos: { effect: { package: "effect" } },
 				}),
 			).pipe(Effect.flip);
@@ -79,7 +92,7 @@ describe("encodeManifest", () => {
 			const manifest = setRepo(emptyManifest, "effect", effect);
 			const raw = encodeManifest(manifest);
 			assert.isTrue(raw.endsWith("}\n"));
-			assert.include(raw, '\n\t"dir": ".repos"');
+			assert.include(raw, '\n\t"dir": ".repos",\n\t"rootAgentsMd": true');
 			assert.deepStrictEqual(yield* decodeManifest(raw), manifest);
 		}),
 	);
@@ -160,9 +173,14 @@ describe("published JSON schema", () => {
 		);
 	});
 
-	it("requires dir and repos at the top level", () => {
-		assert.deepStrictEqual(jsonSchema.required.toSorted(), ["dir", "repos"]);
-		assert.isFalse(Schema.is(Manifest)({ repos: {} }));
+	it("requires dir, rootAgentsMd and repos at the top level", () => {
+		assert.deepStrictEqual(jsonSchema.required.toSorted(), [
+			"dir",
+			"repos",
+			"rootAgentsMd",
+		]);
+		assert.isFalse(Schema.is(Manifest)({ rootAgentsMd: true, repos: {} }));
+		assert.isFalse(Schema.is(Manifest)({ dir: ".repos", repos: {} }));
 		assert.isTrue(Schema.is(Manifest)(emptyManifest));
 	});
 

@@ -23,6 +23,8 @@ export const Manifest = Schema.Struct({
 		Schema.withDecodingDefaultKey(Effect.succeed(MANIFEST_SCHEMA_URL)),
 	),
 	dir: Schema.NonEmptyString,
+	/** Whether to maintain the managed vendor-src block in the root AGENTS.md. */
+	rootAgentsMd: Schema.Boolean,
 	repos: Schema.Record(Schema.String, VendoredRepo),
 });
 export type Manifest = typeof Manifest.Type;
@@ -59,6 +61,7 @@ export const encodeManifest = (manifest: Manifest): string =>
 export const emptyManifest: Manifest = {
 	$schema: MANIFEST_SCHEMA_URL,
 	dir: DEFAULT_DIR,
+	rootAgentsMd: true,
 	repos: {},
 };
 

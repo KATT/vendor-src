@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
 	AGENTS_END,
 	AGENTS_START,
+	removeAgentsBlock,
 	renderAgentsBlock,
 	renderVendorDirAgentsMd,
 	upsertAgentsBlock,
@@ -122,5 +123,33 @@ ${AGENTS_END}
 			".repos",
 		);
 		expect(result.startsWith(AGENTS_START)).toBe(true);
+	});
+});
+
+describe(removeAgentsBlock, () => {
+	const repos = [{ name: "effect", package: "effect", path: ".repos/effect" }];
+
+	it("removes a trailing block", () => {
+		const existing = "# Project\n\nIntro.\n";
+		expect(
+			removeAgentsBlock(upsertAgentsBlock(existing, repos, ".repos")),
+		).toBe(existing);
+	});
+
+	it("removes a block in the middle and keeps surrounding content", () => {
+		const block = renderAgentsBlock(repos, ".repos");
+		expect(
+			removeAgentsBlock(`# Project\n\nIntro.\n\n${block}\n\n## More\n`),
+		).toBe("# Project\n\nIntro.\n\n## More\n");
+	});
+
+	it("returns an empty file when only the block was there", () => {
+		expect(
+			removeAgentsBlock(upsertAgentsBlock(undefined, repos, ".repos")),
+		).toBe("");
+	});
+
+	it("leaves content without a block unchanged", () => {
+		expect(removeAgentsBlock("# Project\n")).toBe("# Project\n");
 	});
 });
