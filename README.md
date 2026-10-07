@@ -30,21 +30,23 @@ Set up vendor-src in this repo:
      entry in pnpm-workspace.yaml then run pnpm install
    - otherwise: pnpm add -D vendor-src
      (or: npm install -D vendor-src / yarn add -D vendor-src / bun add -d vendor-src)
-2. Ensure the git working tree is clean and has at least one commit.
-   Commit the install (package.json / lockfile / catalog) before continuing.
-3. If .repos/<name> (or your configured dir) already exists from a manual subtree (and there is no
-   vendor-src.json entry), remove it first:
+2. Run: pnpm exec vendor-src init
+   (defaults: vendor dir .repos, managed section in the root AGENTS.md;
+   pass --dir <dir> and/or --no-root-agents-md to change them)
+   It prints every file it wrote. Review the diff — do not let existing
+   oxfmt / editor settings get wiped — then commit them together with the
+   install (package.json / lockfile / catalog).
+3. If .repos/<name> (or your configured dir) already exists from a manual
+   subtree (and there is no vendor-src.json entry), remove it first:
    git rm -rq .repos/<name> && git commit -m "Remove .repos/<name>"
 4. Run: pnpm exec vendor-src add <package>
    Example: pnpm exec vendor-src add effect
-   (package must already be installed so the matching git tag can be resolved)
-5. Commit vendor-src.json, AGENTS.md (or README.md if AGENTS.md symlinks to it;
-   skipped when vendor-src.json has "rootAgentsMd": false),
-   {dir}/AGENTS.md, .oxfmtrc.json / editor ignores if changed, package.json
-   (postinstall), and the subtree commit vendor-src created. Review diffs: do
-   not let oxfmt / ignores get wiped.
-6. Never run formatters/linters on the vendor dir (default .repos/**). vendor-src
-   already writes .oxfmtrc.json ignorePatterns and editor excludes for that dir.
+   (package must already be installed so the matching git tag can be resolved;
+   the working tree must be clean)
+5. add commits the subtree itself and prints the files left to commit
+   (vendor-src.json and the AGENTS.md files). Commit them.
+6. Never run formatters/linters on the vendor dir (default .repos/**). init
+   already wrote .oxfmtrc.json ignorePatterns and editor excludes for that dir.
    If you add a new tool, exclude it before the first run.
 7. Prefer reading .repos/<name> as read-only reference. Do not import from
    .repos/ — keep importing the normal npm package.
@@ -55,6 +57,10 @@ Set up vendor-src in this repo:
 ## Usage
 
 ```shell
+# One-time setup (safe to re-run; repairs anything missing)
+pnpm exec vendor-src init
+pnpm exec vendor-src init --dir vendor --no-root-agents-md
+
 # Vendor the source for an installed dependency at its matching git tag
 pnpm exec vendor-src add effect
 
@@ -71,11 +77,11 @@ pnpm exec vendor-src list   # alias: ls
 pnpm exec vendor-src remove effect   # alias: rm
 ```
 
-Commands work from any directory inside the project. `add`, `sync`, and `remove` require at least one commit and a clean working tree.
+Commands work from any directory inside the project. Every command except `init` needs a `vendor-src.json` and says so when it is missing. `add`, `sync`, and `remove` also require at least one commit and a clean working tree. Each command prints the files it changed.
 
-`add` also:
+`init` sets the project up:
 
-- creates `vendor-src.json` with `dir` set to `.repos` and `rootAgentsMd` set to `true` if it does not exist yet (edit either to change the defaults)
+- creates `vendor-src.json` with `dir` (default `.repos`, or `--dir`) and `rootAgentsMd` (default `true`, or `--no-root-agents-md`)
 - maintains a short managed section in root `AGENTS.md` (follows symlinks, e.g. to `README.md`) unless `rootAgentsMd` is `false`
 - writes `{dir}/AGENTS.md` with fuller guidance for agents working inside that tree
 - writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `{dir}/`
@@ -83,11 +89,15 @@ Commands work from any directory inside the project. `add`, `sync`, and `remove`
 - merges editor excludes into `.vscode/settings.json`
 - adds a `postinstall` script that runs `vendor-src check`
 
+Re-running `init` keeps the existing `vendor-src.json` and re-applies the rest, so it is also the way to restore deleted ignores or the `postinstall` hook, or to apply a `dir` you changed by hand. It refuses `--dir` / `--root-agents-md` values that contradict the existing file; edit `vendor-src.json` instead.
+
+`add`, `sync`, and `remove` keep `vendor-src.json` and both AGENTS.md files in step with the vendored repos.
+
 ## Protecting the vendor directory from tooling
 
 Vendored trees are large upstream checkouts. A single repo-wide formatter run without excludes can rewrite thousands of files.
 
-`vendor-src add` writes the ignores for you (using the configured `dir`). If you are wiring tooling manually, copy/paste (replace `.repos` if you changed `dir`):
+`vendor-src init` writes the ignores for you (using the configured `dir`). If you are wiring tooling manually, copy/paste (replace `.repos` if you changed `dir`):
 
 ```json
 // .oxfmtrc.json
@@ -151,9 +161,9 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 
 ## Manifest
 
-`dir` is the folder for checkouts and is required. vendor-src writes `.repos` when it creates the manifest; set any other folder name you prefer. AGENTS.md text, oxfmt ignores, and editor excludes all follow this value.
+`dir` is the folder for checkouts and is required. `vendor-src init` writes `.repos` unless you pass `--dir`. AGENTS.md text, oxfmt ignores, and editor excludes all follow this value; after changing it by hand, move the checkouts and re-run `vendor-src init`.
 
-`rootAgentsMd` controls whether vendor-src maintains its managed section in the project-root `AGENTS.md`, and is also required. vendor-src writes `true` when it creates the manifest; set it to `false` to keep the root `AGENTS.md` untouched (an existing managed section is removed on the next `add` / `sync` / `remove`). `{dir}/AGENTS.md` is always written.
+`rootAgentsMd` controls whether vendor-src maintains its managed section in the project-root `AGENTS.md`, and is also required. `vendor-src init` writes `true` unless you pass `--no-root-agents-md`. Set it to `false` to keep the root `AGENTS.md` untouched; an existing managed section is removed on the next `init` / `add` / `sync` / `remove`. `{dir}/AGENTS.md` is always written.
 
 ```json
 {

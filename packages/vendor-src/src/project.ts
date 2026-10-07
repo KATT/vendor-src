@@ -25,9 +25,9 @@ import {
 } from "./editorConfig.ts";
 import {
 	decodeManifest,
-	emptyManifest,
 	encodeManifest,
 	MANIFEST_FILENAME,
+	ManifestNotFoundError,
 	repoPrefix,
 	vendorDir,
 	type Manifest,
@@ -67,6 +67,9 @@ const PackageJsonFields = Schema.Struct({
 
 const POSTINSTALL = "vendor-src check";
 
+/** Project-relative paths a write step created or modified. */
+export type ChangedFiles = ReadonlyArray<string>;
+
 export class Project extends Context.Service<
 	Project,
 	{
@@ -74,27 +77,33 @@ export class Project extends Context.Service<
 		readonly root: string;
 		/** Resolve a project-relative path to an absolute path. */
 		readonly resolve: (...segments: ReadonlyArray<string>) => string;
+		/** `vendor-src.json`, or none when the project has not been initialized. */
+		readonly findManifest: Effect.Effect<
+			Option.Option<Manifest>,
+			ManifestError | PlatformError
+		>;
+		/** `vendor-src.json`, failing when the project has not been initialized. */
 		readonly readManifest: Effect.Effect<
 			Manifest,
-			ManifestError | PlatformError
+			ManifestError | ManifestNotFoundError | PlatformError
 		>;
 		readonly writeManifest: (
 			manifest: Manifest,
-		) => Effect.Effect<void, PlatformError>;
+		) => Effect.Effect<ChangedFiles, PlatformError>;
 		/**
 		 * Refresh the `{dir}/AGENTS.md` file, and the managed block in the root
 		 * `AGENTS.md` (or remove that block when `rootAgentsMd` is false).
 		 */
 		readonly writeAgentsMd: (
 			manifest: Manifest,
-		) => Effect.Effect<void, PlatformError>;
+		) => Effect.Effect<ChangedFiles, PlatformError>;
 		/** Keep formatters, linters, and editors out of the vendor dir. */
 		readonly writeEditorIgnores: (
 			manifest: Manifest,
-		) => Effect.Effect<void, ConfigFileError | PlatformError>;
+		) => Effect.Effect<ChangedFiles, ConfigFileError | PlatformError>;
 		/** Add `vendor-src check` to the project's `postinstall` script. */
 		readonly ensurePostinstall: Effect.Effect<
-			void,
+			ChangedFiles,
 			ConfigFileError | PlatformError
 		>;
 	}
@@ -131,6 +140,25 @@ export class Project extends Context.Service<
 					),
 				);
 
+		/**
+		 * Write `contents` to a project-relative file unless it already matches.
+		 * Follows symlinks (e.g. AGENTS.md → README.md).
+		 */
+		const writeIfChanged = Effect.fnUntraced(function* (
+			file: string,
+			contents: string,
+		) {
+			const existing = yield* readOptional(resolve(file));
+			if (Option.isSome(existing) && existing.value === contents) {
+				return [];
+			}
+			yield* fs.makeDirectory(path.dirname(resolve(file)), {
+				recursive: true,
+			});
+			yield* fs.writeFileString(resolve(file), contents);
+			return [file];
+		});
+
 		/** Merge a JSON(C) config file, writing only when the contents change. */
 		const mergeConfig = Effect.fnUntraced(function* (
 			file: string,
@@ -147,19 +175,25 @@ export class Project extends Context.Service<
 						reason: cause instanceof Error ? cause.message : String(cause),
 					}),
 			});
-			if (existing !== merged) {
-				yield* fs.makeDirectory(path.dirname(resolve(file)), {
-					recursive: true,
-				});
-				yield* fs.writeFileString(resolve(file), merged);
-			}
+			return yield* writeIfChanged(file, merged);
 		});
 
-		const readManifest = readOptional(resolve(MANIFEST_FILENAME)).pipe(
+		const findManifest = readOptional(resolve(MANIFEST_FILENAME)).pipe(
 			Effect.flatMap(
 				Option.match({
-					onNone: () => Effect.succeed(emptyManifest),
-					onSome: (raw) => decodeManifest(raw, MANIFEST_FILENAME),
+					onNone: () => Effect.succeedNone,
+					onSome: (raw) =>
+						Effect.map(decodeManifest(raw, MANIFEST_FILENAME), Option.some),
+				}),
+			),
+			Effect.withSpan("Project.findManifest"),
+		);
+
+		const readManifest = findManifest.pipe(
+			Effect.flatMap(
+				Option.match({
+					onNone: () => Effect.fail(new ManifestNotFoundError({ root })),
+					onSome: Effect.succeed,
 				}),
 			),
 			Effect.withSpan("Project.readManifest"),
@@ -168,10 +202,7 @@ export class Project extends Context.Service<
 		const writeManifest = Effect.fn("Project.writeManifest")(function* (
 			manifest: Manifest,
 		) {
-			yield* fs.writeFileString(
-				resolve(MANIFEST_FILENAME),
-				encodeManifest(manifest),
-			);
+			return yield* writeIfChanged(MANIFEST_FILENAME, encodeManifest(manifest));
 		});
 
 		const writeAgentsMd = Effect.fn("Project.writeAgentsMd")(function* (
@@ -188,64 +219,76 @@ export class Project extends Context.Service<
 				}),
 			);
 
-			// writeFileString follows AGENTS.md symlinks (e.g. → README.md)
-			const rootAgents = resolve("AGENTS.md");
-			const existing = yield* readOptional(rootAgents);
+			const changed: string[] = [];
+			const existing = yield* readOptional(resolve("AGENTS.md"));
 			if (manifest.rootAgentsMd) {
-				yield* fs.writeFileString(
-					rootAgents,
-					upsertAgentsBlock(Option.getOrUndefined(existing), repos, dir),
+				changed.push(
+					...(yield* writeIfChanged(
+						"AGENTS.md",
+						upsertAgentsBlock(Option.getOrUndefined(existing), repos, dir),
+					)),
 				);
 			} else if (Option.isSome(existing)) {
-				const stripped = removeAgentsBlock(existing.value);
-				if (stripped !== existing.value) {
-					yield* fs.writeFileString(rootAgents, stripped);
-				}
+				changed.push(
+					...(yield* writeIfChanged(
+						"AGENTS.md",
+						removeAgentsBlock(existing.value),
+					)),
+				);
 			}
 
-			yield* fs.makeDirectory(resolve(dir), { recursive: true });
-			yield* fs.writeFileString(
-				resolve(dir, "AGENTS.md"),
-				renderVendorDirAgentsMd(repos, dir),
+			changed.push(
+				...(yield* writeIfChanged(
+					`${dir}/AGENTS.md`,
+					renderVendorDirAgentsMd(repos, dir),
+				)),
 			);
+			return changed;
 		});
 
 		const writeEditorIgnores = Effect.fn("Project.writeEditorIgnores")(
 			function* (manifest: Manifest) {
 				const dir = vendorDir(manifest);
+				const changed: string[] = [];
 
 				for (const file of OPTIONAL_IGNORE_FILES) {
 					const existing = yield* readOptional(resolve(file));
 					if (Option.isSome(existing)) {
-						const merged = mergeIgnoreFile(existing.value, dir);
-						if (merged !== existing.value) {
-							yield* fs.writeFileString(resolve(file), merged);
-						}
+						changed.push(
+							...(yield* writeIfChanged(
+								file,
+								mergeIgnoreFile(existing.value, dir),
+							)),
+						);
 					}
 				}
 
-				yield* mergeConfig(OXFMT_CONFIG_FILE, (text) =>
-					mergeOxfmtConfig(text, dir),
+				changed.push(
+					...(yield* mergeConfig(OXFMT_CONFIG_FILE, (text) =>
+						mergeOxfmtConfig(text, dir),
+					)),
 				);
-				yield* mergeConfig(".vscode/settings.json", (text) =>
-					mergeVsCodeSettings(text, dir),
+				changed.push(
+					...(yield* mergeConfig(".vscode/settings.json", (text) =>
+						mergeVsCodeSettings(text, dir),
+					)),
 				);
+				return changed;
 			},
 		);
 
 		const ensurePostinstall = Effect.gen(function* () {
-			const file = resolve("package.json");
-			const raw = yield* fs.readFileString(file);
+			const raw = yield* fs.readFileString(resolve("package.json"));
 			const json = yield* Schema.decodeEffect(JsonObject)(raw);
 			const { name, scripts } =
 				yield* Schema.decodeUnknownEffect(PackageJsonFields)(json);
 			// Never write postinstall into the published package itself.
 			if (name === "vendor-src") {
-				return;
+				return [];
 			}
 			const current = scripts?.postinstall;
 			if (current?.includes(POSTINSTALL)) {
-				return;
+				return [];
 			}
 			const updated = {
 				...json,
@@ -254,8 +297,8 @@ export class Project extends Context.Service<
 					postinstall: current ? `${current} && ${POSTINSTALL}` : POSTINSTALL,
 				},
 			};
-			yield* fs.writeFileString(
-				file,
+			return yield* writeIfChanged(
+				"package.json",
 				`${JSON.stringify(updated, null, detectIndent(raw))}\n`,
 			);
 		}).pipe(
@@ -270,6 +313,7 @@ export class Project extends Context.Service<
 		return Project.of({
 			root,
 			resolve,
+			findManifest,
 			readManifest,
 			writeManifest,
 			writeAgentsMd,

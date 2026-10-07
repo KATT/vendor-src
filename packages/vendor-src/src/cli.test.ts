@@ -28,6 +28,20 @@ const errorOutput = Effect.map(TestConsole.errorLines, (lines) =>
 	lines.map(String).join("\n"),
 );
 
+const logOutput = Effect.map(TestConsole.logLines, (lines) =>
+	lines.map(String).join("\n"),
+);
+
+/** Run `vendor-src init` in `project` and commit the result. */
+const initAndCommit = Effect.fnUntraced(function* (
+	project: string,
+	...args: string[]
+) {
+	yield* vendorSrc(project, "init", ...args);
+	git(project, "add", "-A");
+	git(project, "commit", "-qm", "init vendor-src");
+});
+
 describe("vendor-src CLI", () => {
 	it.live("adds, checks, syncs, and removes a vendored package", () =>
 		Effect.gen(function* () {
@@ -53,6 +67,19 @@ describe("vendor-src CLI", () => {
 			// Run from a subdirectory: git and file paths must use the project root.
 			const cwd = path.join(project, "src");
 
+			yield* vendorSrc(cwd, "init");
+			assert.include(yield* readFile(project, ".oxfmtrc.json"), '".repos/"');
+			assert.include(
+				yield* readFile(project, "package.json"),
+				'"postinstall": "vendor-src check"',
+			);
+			assert.include(
+				yield* readFile(project, ".repos", "AGENTS.md"),
+				"_None yet.",
+			);
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "init vendor-src");
+
 			yield* vendorSrc(cwd, "add", "lib", "--ignore", "docs/**");
 
 			assert.strictEqual(
@@ -73,10 +100,9 @@ describe("vendor-src CLI", () => {
 				},
 			});
 			assert.include(yield* readFile(project, "AGENTS.md"), "`lib@1.0.0`");
-			assert.include(yield* readFile(project, ".oxfmtrc.json"), '".repos/"');
 			assert.include(
-				yield* readFile(project, "package.json"),
-				'"postinstall": "vendor-src check"',
+				yield* logOutput,
+				"Commit: vendor-src.json, AGENTS.md, .repos/AGENTS.md",
 			);
 			assert.include(
 				git(project, "log", "--format=%s"),
@@ -150,6 +176,7 @@ describe("vendor-src CLI", () => {
 
 				const project = yield* makeProject(path.join(root, "project"));
 				yield* installPackage(project, "lib", "1.0.0", upstream);
+				yield* initAndCommit(project);
 				yield* vendorSrc(project, "add", "lib", "--ignore", "docs/**");
 				git(project, "add", "-A");
 				git(project, "commit", "-qm", "vendor lib");
@@ -196,6 +223,7 @@ describe("vendor-src CLI", () => {
 		Effect.gen(function* () {
 			const project = yield* makeProject(yield* tempDir);
 			yield* installPackage(project, "lib", "1.0.0");
+			yield* initAndCommit(project);
 
 			const noRepo = yield* vendorSrc(project, "add", "lib").pipe(Effect.flip);
 			assert.strictEqual(noRepo._tag, "UserError");
@@ -222,6 +250,7 @@ describe("vendor-src CLI", () => {
 				".repos/lib/src/index.ts": "export {}\n",
 			});
 			yield* installPackage(project, "lib", "1.0.0", upstream);
+			yield* initAndCommit(project);
 
 			const error = yield* vendorSrc(project, "add", "lib").pipe(Effect.flip);
 			assert.strictEqual(error._tag, "UserError");
@@ -235,6 +264,22 @@ describe("vendor-src CLI", () => {
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
+	it.live("asks for init before any command that needs vendor-src.json", () =>
+		Effect.gen(function* () {
+			const project = yield* makeProject(yield* tempDir);
+			yield* installPackage(project, "lib", "1.0.0");
+			for (const args of [["add", "lib"], ["sync"], ["check"], ["list"]]) {
+				const error = yield* vendorSrc(project, ...args).pipe(Effect.flip);
+				assert.strictEqual(error._tag, "UserError");
+			}
+			const output = yield* errorOutput;
+			assert.include(output, "vendor-src.json not found in");
+			assert.include(output, "run `vendor-src init` first");
+			assert.notInclude(output, "working tree is not clean");
+			assert.isFalse(yield* exists(project, "vendor-src.json"));
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
 	it.live("fails outside a project only when a subcommand runs", () =>
 		Effect.gen(function* () {
 			const dir = yield* tempDir;
@@ -245,6 +290,116 @@ describe("vendor-src CLI", () => {
 				yield* errorOutput,
 				"is not inside a git repository with a package.json",
 			);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+});
+
+describe("vendor-src init", () => {
+	it.live("writes the default setup and is idempotent", () =>
+		Effect.gen(function* () {
+			const project = yield* makeProject(yield* tempDir, {
+				"AGENTS.md": "# Project\n",
+			});
+
+			yield* vendorSrc(project, "init");
+			const manifest = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.strictEqual(manifest.dir, ".repos");
+			assert.isTrue(manifest.rootAgentsMd);
+			assert.deepStrictEqual(manifest.repos, {});
+			assert.include(
+				yield* readFile(project, "AGENTS.md"),
+				"<!-- vendor-src:start -->",
+			);
+			assert.isTrue(yield* exists(project, ".repos", "AGENTS.md"));
+			assert.include(yield* readFile(project, ".oxfmtrc.json"), '".repos/"');
+			assert.include(
+				yield* readFile(project, ".vscode", "settings.json"),
+				'".repos/**": true',
+			);
+			assert.include(
+				yield* readFile(project, "package.json"),
+				'"postinstall": "vendor-src check"',
+			);
+			const first = yield* logOutput;
+			assert.include(first, "Created vendor-src.json");
+			assert.include(first, "  package.json");
+			assert.include(first, "run `vendor-src add <package>`");
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "init vendor-src");
+
+			yield* vendorSrc(project, "init");
+			assert.include(yield* logOutput, "Already set up; nothing changed.");
+			assert.strictEqual(git(project, "status", "--porcelain"), "");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("honours --dir and --no-root-agents-md", () =>
+		Effect.gen(function* () {
+			const project = yield* makeProject(yield* tempDir);
+
+			yield* vendorSrc(
+				project,
+				"init",
+				"--dir",
+				"./vendor/",
+				"--no-root-agents-md",
+			);
+			const manifest = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.strictEqual(manifest.dir, "vendor");
+			assert.isFalse(manifest.rootAgentsMd);
+			assert.isFalse(yield* exists(project, "AGENTS.md"));
+			assert.isTrue(yield* exists(project, "vendor", "AGENTS.md"));
+			assert.include(yield* readFile(project, ".oxfmtrc.json"), '"vendor/"');
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("refuses flags that contradict an existing vendor-src.json", () =>
+		Effect.gen(function* () {
+			const project = yield* makeProject(yield* tempDir);
+			yield* initAndCommit(project);
+
+			const dir = yield* vendorSrc(project, "init", "--dir", "vendor").pipe(
+				Effect.flip,
+			);
+			assert.strictEqual(dir._tag, "UserError");
+			const agents = yield* vendorSrc(
+				project,
+				"init",
+				"--no-root-agents-md",
+			).pipe(Effect.flip);
+			assert.strictEqual(agents._tag, "UserError");
+
+			const output = yield* errorOutput;
+			assert.include(output, 'vendor-src.json already sets dir to ".repos"');
+			assert.include(
+				output,
+				"vendor-src.json already sets rootAgentsMd to true",
+			);
+			assert.strictEqual(git(project, "status", "--porcelain"), "");
+
+			// Matching flags are fine and just re-apply the setup.
+			yield* vendorSrc(project, "init", "--dir", ".repos", "--root-agents-md");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("rejects a vendor dir outside the project", () =>
+		Effect.gen(function* () {
+			const project = yield* makeProject(yield* tempDir);
+			for (const dir of ["../elsewhere", "/tmp/repos", "."]) {
+				const error = yield* vendorSrc(project, "init", "--dir", dir).pipe(
+					Effect.flip,
+				);
+				assert.strictEqual(error._tag, "UserError");
+			}
+			assert.include(
+				yield* errorOutput,
+				"--dir must be a relative path inside the project",
+			);
+			assert.isFalse(yield* exists(project, "vendor-src.json"));
 		}).pipe(Effect.provide(TestLayer)),
 	);
 });
