@@ -71,13 +71,16 @@ export const syncCommand = Command.make(
 		}
 
 		// Always refresh AGENTS so format migrations apply even when versions match.
-		yield* project.writeAgentsMd(manifest);
+		const changed = [
+			...(yield* project.writeManifest(manifest)),
+			...(yield* project.writeAgentsMd(manifest)),
+		];
 
 		if (updated > 0) {
-			yield* project.writeManifest(manifest);
-			yield* Console.log(
-				`Updated ${updated} vendored repo(s). Commit the subtree and vendor-src.json changes.`,
-			);
+			yield* Console.log(`Updated ${updated} vendored repo(s).`);
+		}
+		if (changed.length > 0) {
+			yield* Console.log(`Commit: ${changed.join(", ")}`);
 		}
 	}, reportErrors),
 ).pipe(

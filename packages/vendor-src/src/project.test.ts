@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, FileSystem, Path } from "effect";
+import { Effect, FileSystem, Option, Path } from "effect";
 
 import { emptyManifest, setRepo } from "./manifest.ts";
 import { Project } from "./project.ts";
@@ -52,14 +52,22 @@ describe("Project.make", () => {
 });
 
 describe("Project.readManifest / writeManifest", () => {
-	it.effect("returns an empty manifest when the file is missing", () =>
+	it.effect("asks for init when the file is missing", () =>
 		Effect.gen(function* () {
 			const root = yield* makeProject(yield* tempDir);
-			const read = yield* withProject(
+			const [found, error] = yield* withProject(
 				root,
-				Project.use((project) => project.readManifest),
+				Effect.gen(function* () {
+					const project = yield* Project;
+					return [
+						yield* project.findManifest,
+						yield* Effect.flip(project.readManifest),
+					] as const;
+				}),
 			);
-			assert.deepStrictEqual(read, emptyManifest);
+			assert.isTrue(Option.isNone(found));
+			assert.strictEqual(error._tag, "ManifestNotFoundError");
+			assert.include(error.message, "run `vendor-src init` first");
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 
@@ -111,6 +119,24 @@ describe("Project.writeAgentsMd", () => {
 				assert.include(vendorAgents, "## Don'ts");
 				assert.include(vendorAgents, "`effect@4.0.1`");
 			}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("reports changed files and skips writes that change nothing", () =>
+		Effect.gen(function* () {
+			const root = yield* makeProject(yield* tempDir);
+			const [first, second] = yield* withProject(
+				root,
+				Effect.gen(function* () {
+					const project = yield* Project;
+					return [
+						yield* project.writeAgentsMd(manifest),
+						yield* project.writeAgentsMd(manifest),
+					] as const;
+				}),
+			);
+			assert.deepStrictEqual(first, ["AGENTS.md", ".repos/AGENTS.md"]);
+			assert.deepStrictEqual(second, []);
+		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 
 	it.effect("creates AGENTS.md when missing", () =>

@@ -81,14 +81,3 @@ export const checkoutExists = Effect.fnUntraced(function* (
 	const project = yield* Project;
 	return yield* fs.exists(project.resolve(repoPrefix(manifest, name)));
 });
-
-/** Write everything `add` maintains alongside a new checkout. */
-export const writeProjectFiles = Effect.fnUntraced(function* (
-	manifest: Manifest,
-) {
-	const project = yield* Project;
-	yield* project.writeManifest(manifest);
-	yield* project.writeAgentsMd(manifest);
-	yield* project.writeEditorIgnores(manifest);
-	yield* project.ensurePostinstall;
-});

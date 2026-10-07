@@ -44,6 +44,15 @@ export class ManifestError extends Schema.TaggedError<ManifestError>()(
 	}
 }
 
+export class ManifestNotFoundError extends Schema.TaggedError<ManifestNotFoundError>()(
+	"ManifestNotFoundError",
+	{ root: Schema.String },
+) {
+	override get message() {
+		return `${MANIFEST_FILENAME} not found in ${this.root}; run \`vendor-src init\` first`;
+	}
+}
+
 export const decodeManifest = Effect.fn("decodeManifest")(function* (
 	raw: string,
 	path: string = MANIFEST_FILENAME,

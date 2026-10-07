@@ -33,6 +33,7 @@ export {
 	Manifest,
 	ManifestError,
 	ManifestJson,
+	ManifestNotFoundError,
 	MANIFEST_FILENAME,
 	MANIFEST_SCHEMA_URL,
 	removeRepo,
@@ -47,7 +48,12 @@ export {
 	InstalledPackages,
 	parsePnpmWorkspacePackages,
 } from "./packages.ts";
-export { ConfigFileError, Project, ProjectNotFoundError } from "./project.ts";
+export {
+	ConfigFileError,
+	Project,
+	ProjectNotFoundError,
+	type ChangedFiles,
+} from "./project.ts";
 export { defaultVendorName, normalizeRepositoryUrl } from "./repository.ts";
 export { compareSemver, maxSemver, parseSemver } from "./semver.ts";
 export {

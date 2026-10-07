@@ -30,9 +30,13 @@ export const removeCommand = Command.make(
 		// Remove from disk rather than `git rm` so untracked files (e.g. .DS_Store) don't fail it.
 		yield* fs.remove(project.resolve(prefix), { recursive: true, force: true });
 		const updated = removeRepo(manifest, name);
-		yield* project.writeManifest(updated);
-		yield* project.writeAgentsMd(updated);
-		yield* Console.log(`Removed ${prefix}.`);
+		const changed = [
+			...(yield* project.writeManifest(updated)),
+			...(yield* project.writeAgentsMd(updated)),
+		];
+		yield* Console.log(
+			`Removed ${prefix}. Commit: ${[prefix, ...changed].join(", ")}`,
+		);
 	}, reportErrors),
 ).pipe(
 	Command.withDescription("Remove a vendored repository"),

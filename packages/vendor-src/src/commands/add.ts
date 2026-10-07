@@ -2,7 +2,7 @@ import { Console, Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 
 import { Git } from "../git.ts";
-import { repoPrefix, setRepo, vendorDir } from "../manifest.ts";
+import { repoPrefix, setRepo } from "../manifest.ts";
 import { Project } from "../project.ts";
 import { pruneIgnoredPaths } from "../prune.ts";
 import { defaultVendorName, normalizeRepositoryUrl } from "../repository.ts";
@@ -14,7 +14,6 @@ import {
 	refFlag,
 	reportErrors,
 	resolveInstalledSource,
-	writeProjectFiles,
 } from "./shared.ts";
 
 const isGitUrl = (target: string) =>
@@ -41,6 +40,7 @@ export const addCommand = Command.make(
 	Effect.fn("vendor-src add")(function* ({ target, name, ref, ignore }) {
 		const project = yield* Project;
 		const git = yield* Git;
+		const manifest = yield* project.readManifest;
 		yield* git.ensureReady;
 
 		const source = isGitUrl(target)
@@ -69,7 +69,6 @@ export const addCommand = Command.make(
 		const vendorName = Option.getOrElse(name, () =>
 			defaultVendorName(source.packageName),
 		);
-		const manifest = yield* project.readManifest;
 		yield* ensureNotVendored(manifest, vendorName);
 		const prefix = repoPrefix(manifest, vendorName);
 		if (yield* checkoutExists(manifest, vendorName)) {
@@ -97,11 +96,12 @@ export const addCommand = Command.make(
 			ignore,
 		});
 		yield* pruneIgnoredPaths(updated, vendorName);
-		yield* writeProjectFiles(updated);
+		const changed = [
+			...(yield* project.writeManifest(updated)),
+			...(yield* project.writeAgentsMd(updated)),
+		];
 
-		yield* Console.log(
-			`Added ${prefix}. Commit vendor-src.json, AGENTS.md, ${vendorDir(updated)}/AGENTS.md, and editor ignores.`,
-		);
+		yield* Console.log(`Added ${prefix}. Commit: ${changed.join(", ")}`);
 	}, reportErrors),
 ).pipe(
 	Command.withDescription(
