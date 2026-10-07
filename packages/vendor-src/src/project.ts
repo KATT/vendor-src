@@ -16,14 +16,6 @@ import {
 	type AgentsRepoLine,
 } from "./agentsMd.ts";
 import {
-	detectIndent,
-	mergeIgnoreFile,
-	mergeOxfmtConfig,
-	mergeVsCodeSettings,
-	OPTIONAL_IGNORE_FILES,
-	OXFMT_CONFIG_FILE,
-} from "./editorConfig.ts";
-import {
 	decodeManifest,
 	encodeManifest,
 	MANIFEST_FILENAME,
@@ -65,8 +57,13 @@ const PackageJsonFields = Schema.Struct({
 	scripts: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 });
 
-const POSTINSTALL = "vendor-src check --sync";
-const OWN_HOOKS = ["vendor-src check", "vendor-src sync"];
+const POSTINSTALL = "vendor-src check";
+/** Hooks vendor-src itself used to write; safe to overwrite. */
+const LEGACY_HOOKS = ["vendor-src check --sync", "vendor-src sync"];
+/** A `vendor-src check` / `sync` call, with its flags, inside a longer script. */
+const OWN_HOOK = /vendor-src (?:check|sync)(?: --[\w-]+)*/;
+
+const detectIndent = (text: string) => text.match(/\n([ \t]+)"/)?.[1] ?? "\t";
 
 const CheckoutPackageJson = Schema.fromJsonString(
 	Schema.Struct({ version: Schema.optionalKey(Schema.String) }),
@@ -81,7 +78,7 @@ export type PostinstallResult =
 	| {
 			readonly _tag: "Occupied";
 			readonly existing: string;
-			/** The same script, extended to also run `vendor-src check --sync`. */
+			/** The same script, extended to also run `vendor-src check`. */
 			readonly suggested: string;
 	  };
 
@@ -112,16 +109,12 @@ export class Project extends Context.Service<
 		readonly writeAgentsMd: (
 			manifest: Manifest,
 		) => Effect.Effect<ChangedFiles, PlatformError>;
-		/** Keep formatters, linters, and editors out of the vendor dir. */
-		readonly writeEditorIgnores: (
-			manifest: Manifest,
-		) => Effect.Effect<ChangedFiles, ConfigFileError | PlatformError>;
 		/** The `version` in `{path}/package.json` inside a checkout, if readable. */
 		readonly checkoutPackageVersion: (
 			path: string,
 		) => Effect.Effect<Option.Option<string>, PlatformError>;
 		/**
-		 * Make `vendor-src check --sync` the project's `postinstall` script, unless
+		 * Make `vendor-src check` the project's `postinstall` script, unless
 		 * another `postinstall` already exists.
 		 */
 		readonly ensurePostinstall: Effect.Effect<
@@ -179,25 +172,6 @@ export class Project extends Context.Service<
 			});
 			yield* fs.writeFileString(resolve(file), contents);
 			return [file];
-		});
-
-		/** Merge a JSON(C) config file, writing only when the contents change. */
-		const mergeConfig = Effect.fnUntraced(function* (
-			file: string,
-			merge: (existing: string | undefined) => string,
-		) {
-			const existing = Option.getOrUndefined(
-				yield* readOptional(resolve(file)),
-			);
-			const merged = yield* Effect.try({
-				try: () => merge(existing),
-				catch: (cause) =>
-					new ConfigFileError({
-						path: file,
-						reason: cause instanceof Error ? cause.message : String(cause),
-					}),
-			});
-			return yield* writeIfChanged(file, merged);
 		});
 
 		const findManifest = readOptional(resolve(MANIFEST_FILENAME)).pipe(
@@ -281,37 +255,6 @@ export class Project extends Context.Service<
 			return changed;
 		});
 
-		const writeEditorIgnores = Effect.fn("Project.writeEditorIgnores")(
-			function* (manifest: Manifest) {
-				const dir = vendorDir(manifest);
-				const changed: string[] = [];
-
-				for (const file of OPTIONAL_IGNORE_FILES) {
-					const existing = yield* readOptional(resolve(file));
-					if (Option.isSome(existing)) {
-						changed.push(
-							...(yield* writeIfChanged(
-								file,
-								mergeIgnoreFile(existing.value, dir),
-							)),
-						);
-					}
-				}
-
-				changed.push(
-					...(yield* mergeConfig(OXFMT_CONFIG_FILE, (text) =>
-						mergeOxfmtConfig(text, dir),
-					)),
-				);
-				changed.push(
-					...(yield* mergeConfig(".vscode/settings.json", (text) =>
-						mergeVsCodeSettings(text, dir),
-					)),
-				);
-				return changed;
-			},
-		);
-
 		const ensurePostinstall = Effect.gen(function* () {
 			const raw = yield* fs.readFileString(resolve("package.json"));
 			const json = yield* Schema.decodeEffect(JsonObject)(raw);
@@ -322,12 +265,11 @@ export class Project extends Context.Service<
 				return { _tag: "Ready", changed: [] } satisfies PostinstallResult;
 			}
 			const current = scripts?.postinstall?.trim() ?? "";
-			if (current.includes(POSTINSTALL)) {
+			const own = current.match(OWN_HOOK)?.[0];
+			if (own?.startsWith(POSTINSTALL) && !own.includes("--sync")) {
 				return { _tag: "Ready", changed: [] } satisfies PostinstallResult;
 			}
-			// Bare `vendor-src check` / `vendor-src sync` are hooks vendor-src itself used to write.
-			if (current !== "" && !OWN_HOOKS.includes(current)) {
-				const own = OWN_HOOKS.find((hook) => current.includes(hook));
+			if (current !== "" && !LEGACY_HOOKS.includes(current)) {
 				return {
 					_tag: "Occupied",
 					existing: current,
@@ -362,7 +304,6 @@ export class Project extends Context.Service<
 			readManifest,
 			writeManifest,
 			writeAgentsMd,
-			writeEditorIgnores,
 			checkoutPackageVersion,
 			ensurePostinstall,
 		});

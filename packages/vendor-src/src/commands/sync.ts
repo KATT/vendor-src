@@ -31,8 +31,8 @@ export const syncRepos = Effect.fn("syncRepos")(function* (
 		yield* Console.log("No vendored repositories to sync.");
 		return;
 	}
-	// Only the checkouts must be clean: `check --sync` runs from postinstall,
-	// right after the package manager rewrote package.json and the lockfile.
+	// Only the checkouts must be clean: sync usually runs right after an
+	// upgrade, while package.json and the lockfile are still uncommitted.
 	yield* git.ensureClean(selected.map((name) => repoPrefix(manifest, name)));
 
 	let updated = 0;
@@ -94,4 +94,14 @@ export const syncCommand = Command.make(
 	Command.withDescription(
 		"Pull vendored repos to the git tags matching installed package versions",
 	),
+	Command.withExamples([
+		{
+			command: "vendor-src sync",
+			description: "Sync every vendored repo after upgrading dependencies",
+		},
+		{
+			command: "vendor-src sync effect",
+			description: "Sync one checkout",
+		},
+	]),
 );

@@ -52,6 +52,14 @@ Effect code is tested with [`@effect/vitest`](https://github.com/Effect-TS/effec
 
 `pnpm-workspace.yaml` pins `vitest` and aliases `vite` to the copies bundled by Vite+, so `@effect/vitest` shares the runner used by `vp test`.
 
+## Docs
+
+The command reference in `README.md` (between the `commands:start` / `commands:end` markers) is generated from the CLI's `--help`. After changing a command, its flags, or their descriptions, regenerate it; `src/readme.test.ts` fails when it is out of date:
+
+```shell
+pnpm docs
+```
+
 ## Type Checking
 
 ```shell

@@ -32,6 +32,12 @@ const normalizeDir = Effect.fnUntraced(function* (dir: string) {
 const describe = (manifest: Manifest) =>
 	`dir: ${JSON.stringify(vendorDir(manifest))}, rootAgentsMd: ${manifest.rootAgentsMd}`;
 
+/** Tooling vendor-src can't configure without knowing the project's setup. */
+const toolingSteps = (dir: string) => [
+	`Exclude ${dir}/ from every formatter and linter before they next run, or one repo-wide fix can rewrite thousands of vendored files (e.g. .prettierignore, "ignorePatterns" in .oxfmtrc.json, "ignores" in eslint.config.js, "files.includes" in biome.json).`,
+	`Hide ${dir}/ from editor search, file watching, and auto-imports (VS Code: "files.exclude", "search.exclude", "files.watcherExclude", and "typescript.preferences.autoImportFileExcludePatterns" in .vscode/settings.json).`,
+];
+
 export const initCommand = Command.make(
 	"init",
 	{
@@ -98,7 +104,6 @@ export const initCommand = Command.make(
 		}
 
 		changed.push(...(yield* project.writeAgentsMd(manifest)));
-		changed.push(...(yield* project.writeEditorIgnores(manifest)));
 		const postinstall = yield* project.ensurePostinstall;
 		if (postinstall._tag === "Ready") {
 			changed.push(...postinstall.changed);
@@ -107,7 +112,7 @@ export const initCommand = Command.make(
 				[
 					"vendor-src: package.json already has a postinstall script; left it unchanged:",
 					`  "postinstall": ${JSON.stringify(postinstall.existing)}`,
-					"To also sync vendored sources after every install, run both from it, e.g.:",
+					"To also check vendored sources after every install, run both from it, e.g.:",
 					`  "postinstall": ${JSON.stringify(postinstall.suggested)}`,
 				].join("\n"),
 			);
@@ -122,19 +127,20 @@ export const initCommand = Command.make(
 		}
 
 		const hasRepos = Object.keys(manifest.repos).length > 0;
-		if (changed.length > 0) {
-			yield* Console.log(
-				hasRepos
-					? "Next: review and commit these files."
-					: "Next: commit these files, then run `vendor-src add <package>`.",
-			);
-		} else if (!hasRepos) {
-			yield* Console.log("Next: run `vendor-src add <package>`.");
-		}
+		const steps = [
+			...(changed.length > 0 ? ["Review and commit the files above."] : []),
+			...(hasRepos
+				? []
+				: ["Run `vendor-src add <package>` for each key dependency."]),
+			...toolingSteps(vendorDir(manifest)),
+		];
+		yield* Console.log(
+			["Next steps:", ...steps.map((step) => `  - ${step}`)].join("\n"),
+		);
 	}, reportErrors),
 ).pipe(
 	Command.withDescription(
-		"Set up vendor-src: create vendor-src.json, AGENTS.md files, tooling ignores, and the postinstall hook (safe to re-run)",
+		"Set up vendor-src: create vendor-src.json, the AGENTS.md files, and the postinstall hook, then print what else to configure (safe to re-run)",
 	),
 	Command.withExamples([
 		{
