@@ -6,7 +6,6 @@ import { emptyManifest, setRepo } from "./manifest.ts";
 import { Project } from "./project.ts";
 import {
 	exists,
-	git,
 	isolateGitConfig,
 	makeProject,
 	readFile,
@@ -240,20 +239,74 @@ describe("Project.writeEditorIgnores", () => {
 });
 
 describe("Project.ensurePostinstall", () => {
-	it.effect("appends to an existing postinstall and preserves key order", () =>
+	const packageJson = (scripts: string) =>
+		`{\n  "name": "app",\n  "scripts": {\n${scripts}\n  },\n  "private": true\n}\n`;
+
+	const ensureWith = Effect.fnUntraced(function* (raw: string) {
+		const root = yield* makeProject(yield* tempDir, { "package.json": raw });
+		const result = yield* withProject(
+			root,
+			Project.use((project) => project.ensurePostinstall),
+		);
+		return { result, written: yield* readFile(root, "package.json") };
+	});
+
+	it.effect("adds vendor-src sync and preserves key order", () =>
 		Effect.gen(function* () {
-			const root = yield* makeProject(yield* tempDir, {
-				"package.json": `{\n  "name": "app",\n  "scripts": {\n    "postinstall": "husky"\n  },\n  "private": true\n}\n`,
+			const { result, written } = yield* ensureWith(
+				packageJson(`    "build": "tsc"`),
+			);
+			assert.deepStrictEqual(result, {
+				_tag: "Ready",
+				changed: ["package.json"],
 			});
-			git(root, "add", "-A");
-			yield* withProject(
-				root,
-				Project.use((project) => project.ensurePostinstall),
-			);
 			assert.strictEqual(
-				yield* readFile(root, "package.json"),
-				`{\n  "name": "app",\n  "scripts": {\n    "postinstall": "husky && vendor-src check"\n  },\n  "private": true\n}\n`,
+				written,
+				packageJson(
+					`    "build": "tsc",\n    "postinstall": "vendor-src sync"`,
+				),
 			);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("upgrades a bare vendor-src check hook to sync", () =>
+		Effect.gen(function* () {
+			const { result, written } = yield* ensureWith(
+				packageJson(`    "postinstall": "vendor-src check"`),
+			);
+			assert.strictEqual(result._tag, "Ready");
+			assert.strictEqual(
+				written,
+				packageJson(`    "postinstall": "vendor-src sync"`),
+			);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("leaves a postinstall that already syncs alone", () =>
+		Effect.gen(function* () {
+			const raw = packageJson(`    "postinstall": "husky && vendor-src sync"`);
+			const { result, written } = yield* ensureWith(raw);
+			assert.deepStrictEqual(result, { _tag: "Ready", changed: [] });
+			assert.strictEqual(written, raw);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect("never rewrites another postinstall and suggests one", () =>
+		Effect.gen(function* () {
+			for (const [existing, suggested] of [
+				["husky", "husky && vendor-src sync"],
+				["husky && vendor-src check", "husky && vendor-src sync"],
+				["vendor-src check --strict", "vendor-src sync"],
+			] as const) {
+				const raw = packageJson(`    "postinstall": "${existing}"`);
+				const { result, written } = yield* ensureWith(raw);
+				assert.deepStrictEqual(result, {
+					_tag: "Occupied",
+					existing,
+					suggested,
+				});
+				assert.strictEqual(written, raw);
+			}
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 

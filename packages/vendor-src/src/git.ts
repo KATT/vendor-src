@@ -16,12 +16,18 @@ export class GitError extends Schema.TaggedError<GitError>()("GitError", {
 
 export class WorkingTreeError extends Schema.TaggedError<WorkingTreeError>()(
 	"WorkingTreeError",
-	{ reason: Schema.Literals(["no-commits", "dirty"]) },
+	{
+		reason: Schema.Literals(["no-commits", "dirty"]),
+		paths: Schema.optionalKey(Schema.Array(Schema.String)),
+	},
 ) {
 	override get message() {
-		return this.reason === "no-commits"
-			? "the repository has no commits yet; make an initial commit first"
-			: "working tree is not clean; commit or stash first";
+		if (this.reason === "no-commits") {
+			return "the repository has no commits yet; make an initial commit first";
+		}
+		return this.paths === undefined
+			? "working tree is not clean; commit or stash first"
+			: `uncommitted changes in ${this.paths.join(", ")}; commit, stash, or discard them first`;
 	}
 }
 
@@ -55,6 +61,13 @@ export class Git extends Context.Service<
 	{
 		/** Fail unless the repository has a commit and a clean working tree. */
 		readonly ensureReady: Effect.Effect<void, GitError | WorkingTreeError>;
+		/**
+		 * Fail unless the repository has a commit and nothing under `paths` is
+		 * uncommitted. Changes elsewhere (e.g. a lockfile mid-install) are fine.
+		 */
+		readonly ensureClean: (
+			paths: ReadonlyArray<string>,
+		) => Effect.Effect<void, GitError | WorkingTreeError>;
 		readonly resolveTag: (
 			url: string,
 			packageName: string,
@@ -66,16 +79,22 @@ export class Git extends Context.Service<
 			ref: string,
 		) => Effect.Effect<void, GitError>;
 		/**
-		 * Replace `prefix` with the tree at `ref` from `url` in a new commit.
-		 * Local edits under `prefix` are discarded.
+		 * Replace `prefix` with the tree at `ref` from `url` in a new commit that
+		 * contains only `prefix`. Local edits under `prefix` are discarded.
 		 */
 		readonly replaceSubtree: (
 			prefix: string,
 			url: string,
 			ref: string,
 		) => Effect.Effect<void, GitError>;
-		/** Stage everything and commit; returns `false` when there was nothing to commit. */
-		readonly commitAll: (message: string) => Effect.Effect<boolean, GitError>;
+		/**
+		 * Commit every change under `prefix` and nothing else; returns `false`
+		 * when there was nothing to commit.
+		 */
+		readonly commitPath: (
+			prefix: string,
+			message: string,
+		) => Effect.Effect<boolean, GitError>;
 	}
 >()("vendor-src/Git") {
 	static readonly layer = Layer.effect(
@@ -136,17 +155,42 @@ export class Git extends Context.Service<
 				}
 			}, spawnFailed);
 
+			const ensureCommitted = capture([
+				"rev-parse",
+				"--verify",
+				"--quiet",
+				"HEAD",
+			]).pipe(
+				Effect.catchTag("GitError", () =>
+					Effect.fail(new WorkingTreeError({ reason: "no-commits" })),
+				),
+			);
+
 			const ensureReady = Effect.gen(function* () {
-				yield* capture(["rev-parse", "--verify", "--quiet", "HEAD"]).pipe(
-					Effect.catchTag("GitError", () =>
-						Effect.fail(new WorkingTreeError({ reason: "no-commits" })),
-					),
-				);
+				yield* ensureCommitted;
 				const status = yield* capture(["status", "--porcelain"]);
 				if (status.length > 0) {
 					return yield* new WorkingTreeError({ reason: "dirty" });
 				}
 			}).pipe(Effect.withSpan("Git.ensureReady"));
+
+			const ensureClean = Effect.fn("Git.ensureClean")(function* (
+				paths: ReadonlyArray<string>,
+			) {
+				yield* ensureCommitted;
+				if (paths.length === 0) {
+					return;
+				}
+				const status = yield* capture([
+					"status",
+					"--porcelain",
+					"--",
+					...paths,
+				]);
+				if (status.length > 0) {
+					return yield* new WorkingTreeError({ reason: "dirty", paths });
+				}
+			});
 
 			const resolveTag = Effect.fn("Git.resolveTag")(function* (
 				url: string,
@@ -217,27 +261,39 @@ export class Git extends Context.Service<
 							"commit",
 							"-m",
 							`chore(vendor): update ${prefix} to ${ref}`,
+							"--",
+							prefix,
 						]);
 					}),
 				);
 			});
 
-			const commitAll = Effect.fn("Git.commitAll")(function* (message: string) {
-				yield* capture(["add", "-A"]);
-				const status = yield* capture(["status", "--porcelain"]);
-				if (status.length === 0) {
+			const commitPath = Effect.fn("Git.commitPath")(function* (
+				prefix: string,
+				message: string,
+			) {
+				yield* capture(["add", "-A", "--", prefix]);
+				const staged = yield* capture([
+					"diff",
+					"--cached",
+					"--name-only",
+					"--",
+					prefix,
+				]);
+				if (staged.length === 0) {
 					return false;
 				}
-				yield* interactive(["commit", "-m", message]);
+				yield* interactive(["commit", "-m", message, "--", prefix]);
 				return true;
 			});
 
 			return Git.of({
 				ensureReady,
+				ensureClean,
 				resolveTag,
 				subtreeAdd,
 				replaceSubtree,
-				commitAll,
+				commitPath,
 			});
 		}),
 	);

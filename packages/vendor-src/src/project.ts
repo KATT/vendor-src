@@ -65,7 +65,8 @@ const PackageJsonFields = Schema.Struct({
 	scripts: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 });
 
-const POSTINSTALL = "vendor-src check";
+const POSTINSTALL = "vendor-src sync";
+const CHECK_COMMAND = /vendor-src check(?: --strict)?/;
 
 const CheckoutPackageJson = Schema.fromJsonString(
 	Schema.Struct({ version: Schema.optionalKey(Schema.String) }),
@@ -73,6 +74,16 @@ const CheckoutPackageJson = Schema.fromJsonString(
 
 /** Project-relative paths a write step created or modified. */
 export type ChangedFiles = ReadonlyArray<string>;
+
+/** `Occupied` when another `postinstall` exists and was left as is. */
+export type PostinstallResult =
+	| { readonly _tag: "Ready"; readonly changed: ChangedFiles }
+	| {
+			readonly _tag: "Occupied";
+			readonly existing: string;
+			/** The same script, extended to also run `vendor-src sync`. */
+			readonly suggested: string;
+	  };
 
 export class Project extends Context.Service<
 	Project,
@@ -109,9 +120,12 @@ export class Project extends Context.Service<
 		readonly checkoutPackageVersion: (
 			path: string,
 		) => Effect.Effect<Option.Option<string>, PlatformError>;
-		/** Add `vendor-src check` to the project's `postinstall` script. */
+		/**
+		 * Make `vendor-src sync` the project's `postinstall` script, unless
+		 * another `postinstall` already exists.
+		 */
 		readonly ensurePostinstall: Effect.Effect<
-			ChangedFiles,
+			PostinstallResult,
 			ConfigFileError | PlatformError
 		>;
 	}
@@ -305,23 +319,31 @@ export class Project extends Context.Service<
 				yield* Schema.decodeUnknownEffect(PackageJsonFields)(json);
 			// Never write postinstall into the published package itself.
 			if (name === "vendor-src") {
-				return [];
+				return { _tag: "Ready", changed: [] } satisfies PostinstallResult;
 			}
-			const current = scripts?.postinstall;
-			if (current?.includes(POSTINSTALL)) {
-				return [];
+			const current = scripts?.postinstall?.trim() ?? "";
+			if (current.includes(POSTINSTALL)) {
+				return { _tag: "Ready", changed: [] } satisfies PostinstallResult;
+			}
+			// A bare `vendor-src check` is the hook vendor-src itself used to write.
+			if (current !== "" && current !== "vendor-src check") {
+				return {
+					_tag: "Occupied",
+					existing: current,
+					suggested: CHECK_COMMAND.test(current)
+						? current.replace(CHECK_COMMAND, POSTINSTALL)
+						: `${current} && ${POSTINSTALL}`,
+				} satisfies PostinstallResult;
 			}
 			const updated = {
 				...json,
-				scripts: {
-					...scripts,
-					postinstall: current ? `${current} && ${POSTINSTALL}` : POSTINSTALL,
-				},
+				scripts: { ...scripts, postinstall: POSTINSTALL },
 			};
-			return yield* writeIfChanged(
+			const changed = yield* writeIfChanged(
 				"package.json",
 				`${JSON.stringify(updated, null, detectIndent(raw))}\n`,
 			);
+			return { _tag: "Ready", changed } satisfies PostinstallResult;
 		}).pipe(
 			Effect.catchTag("SchemaError", (error) =>
 				Effect.fail(

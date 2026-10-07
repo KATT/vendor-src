@@ -42,7 +42,8 @@ export const pruneIgnoredPaths = Effect.fn("pruneIgnoredPaths")(function* (
 			fs.remove(path.join(root, entry), { recursive: true, force: true }),
 		{ discard: true },
 	);
-	const committed = yield* git.commitAll(
+	const committed = yield* git.commitPath(
+		prefix,
 		`chore(vendor): prune ignored paths from ${name}`,
 	);
 	if (!committed) {

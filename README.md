@@ -50,8 +50,11 @@ Set up vendor-src in this repo:
    If you add a new tool, exclude it before the first run.
 7. Prefer reading .repos/<name> as read-only reference. Do not import from
    .repos/ — keep importing the normal npm package.
-8. After dependency upgrades, run: pnpm exec vendor-src check
-   If it warns, run: pnpm exec vendor-src sync
+8. init adds a postinstall script that runs vendor-src sync, so dependency
+   upgrades re-vendor the matching tags automatically. If init warns that
+   package.json already has a postinstall, chain both in it as suggested.
+   The sync commits only the checkouts; commit vendor-src.json and the
+   AGENTS.md files together with the upgrade.
 ```
 
 ## Usage
@@ -64,20 +67,21 @@ pnpm exec vendor-src init --dir vendor --no-root-agents-md
 # Vendor the source for an installed dependency at its matching git tag
 pnpm exec vendor-src add effect
 
-# Offline check after installs (exit 0 with a warning on drift)
+# Offline drift check (exit 0 with a warning on drift)
 pnpm exec vendor-src check
 
 # Fail CI when vendored sources are stale
 pnpm exec vendor-src check --strict
 
 # Pull drifted repos to the git tags matching currently installed versions
+# (runs automatically from postinstall)
 pnpm exec vendor-src sync
 
 pnpm exec vendor-src list   # alias: ls
 pnpm exec vendor-src remove effect   # alias: rm
 ```
 
-Commands work from any directory inside the project. Every command except `init` needs a `vendor-src.json` and says so when it is missing. `add`, `sync`, and `remove` also require at least one commit and a clean working tree. Each command prints the files it changed.
+Commands work from any directory inside the project. Every command except `init` needs a `vendor-src.json` and says so when it is missing. `add`, `sync`, and `remove` also require at least one commit. `add` and `remove` require a clean working tree; `sync` only requires the checkouts it syncs to be clean, so it can run from `postinstall` while `package.json` and the lockfile are still uncommitted. Its commits contain only those checkouts. Each command prints the files it changed.
 
 `init` sets the project up:
 
@@ -87,7 +91,7 @@ Commands work from any directory inside the project. Every command except `init`
 - writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `{dir}/`
 - if `.prettierignore` / `.eslintignore` already exist, merges `{dir}/` into them too (does not create those files)
 - merges editor excludes into `.vscode/settings.json`
-- adds a `postinstall` script that runs `vendor-src check`
+- sets the `postinstall` script to `vendor-src sync`, so installs re-vendor drifted repos. If `package.json` already has a different `postinstall`, `init` leaves it untouched and prints a warning with a script that runs both, e.g. `"postinstall": "husky && vendor-src sync"`
 
 Re-running `init` keeps the existing `vendor-src.json` and re-applies the rest, so it is also the way to restore deleted ignores or the `postinstall` hook, or to apply a `dir` you changed by hand. It refuses `--dir` / `--root-agents-md` values that contradict the existing file; edit `vendor-src.json` instead.
 

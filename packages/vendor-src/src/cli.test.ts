@@ -71,7 +71,7 @@ describe("vendor-src CLI", () => {
 			assert.include(yield* readFile(project, ".oxfmtrc.json"), '".repos/"');
 			assert.include(
 				yield* readFile(project, "package.json"),
-				'"postinstall": "vendor-src check"',
+				'"postinstall": "vendor-src sync"',
 			);
 			assert.include(
 				yield* readFile(project, ".repos", "AGENTS.md"),
@@ -217,6 +217,74 @@ describe("vendor-src CLI", () => {
 				);
 				assert.strictEqual(synced.repos.lib?.version, "1.1.0");
 			}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("syncs mid-install, committing only the vendored checkout", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "lib", [
+				{
+					version: "1.0.0",
+					files: {
+						"src/index.ts": "export const v = 1\n",
+						"docs/guide.md": "# Guide\n",
+					},
+				},
+				{
+					version: "1.1.0",
+					files: {
+						"src/index.ts": "export const v = 2\n",
+						"docs/guide.md": "# Guide 2\n",
+					},
+				},
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* installPackage(project, "lib", "1.0.0", upstream);
+			yield* initAndCommit(project);
+			yield* vendorSrc(project, "add", "lib", "--ignore", "docs/**");
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor lib");
+
+			// What `pnpm up lib` leaves behind when postinstall runs.
+			yield* installPackage(project, "lib", "1.1.0", upstream);
+			yield* writeFiles(project, { "pnpm-lock.yaml": "lib: 1.1.0\n" });
+			git(project, "add", "pnpm-lock.yaml");
+			yield* writeFiles(project, { "wip.ts": "export {}\n" });
+
+			yield* vendorSrc(project, "sync");
+			assert.strictEqual(
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
+				"export const v = 2\n",
+			);
+			assert.isFalse(yield* exists(project, ".repos", "lib", "docs"));
+			assert.strictEqual(
+				git(project, "show", "--name-only", "--format=", "HEAD~1", "HEAD")
+					.split("\n")
+					.filter((file) => !file.startsWith(".repos/lib/"))
+					.join("\n"),
+				"",
+			);
+			const status = git(project, "status", "--porcelain");
+			assert.include(status, "A  pnpm-lock.yaml");
+			assert.include(status, "?? wip.ts");
+			assert.include(status, " M vendor-src.json");
+
+			yield* writeFiles(project, {
+				".repos/lib/src/index.ts": "local edit\n",
+			});
+			yield* installPackage(project, "lib", "1.0.0", upstream);
+			const dirty = yield* vendorSrc(project, "sync").pipe(Effect.flip);
+			assert.strictEqual(dirty._tag, "UserError");
+			assert.include(
+				yield* errorOutput,
+				"uncommitted changes in .repos/lib; commit, stash, or discard them first",
+			);
+			assert.strictEqual(
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
+				"local edit\n",
+			);
+		}).pipe(Effect.provide(TestLayer)),
 	);
 
 	it.live("vendors the fetched tag regardless of FETCH_HEAD", () =>
@@ -398,7 +466,7 @@ describe("vendor-src init", () => {
 			);
 			assert.include(
 				yield* readFile(project, "package.json"),
-				'"postinstall": "vendor-src check"',
+				'"postinstall": "vendor-src sync"',
 			);
 			const first = yield* logOutput;
 			assert.include(first, "Created vendor-src.json");
@@ -410,6 +478,29 @@ describe("vendor-src init", () => {
 			yield* vendorSrc(project, "init");
 			assert.include(yield* logOutput, "Already set up; nothing changed.");
 			assert.strictEqual(git(project, "status", "--porcelain"), "");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("warns instead of touching another postinstall", () =>
+		Effect.gen(function* () {
+			const raw = `${JSON.stringify(
+				{ name: "app", scripts: { postinstall: "husky" } },
+				null,
+				"\t",
+			)}\n`;
+			const project = yield* makeProject(yield* tempDir, {
+				"package.json": raw,
+			});
+
+			yield* vendorSrc(project, "init");
+			assert.strictEqual(yield* readFile(project, "package.json"), raw);
+			const output = yield* errorOutput;
+			assert.include(
+				output,
+				"package.json already has a postinstall script; left it unchanged:",
+			);
+			assert.include(output, '"postinstall": "husky && vendor-src sync"');
+			assert.notInclude(yield* logOutput, "  package.json");
 		}).pipe(Effect.provide(TestLayer)),
 	);
 

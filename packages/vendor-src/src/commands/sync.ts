@@ -20,7 +20,6 @@ export const syncCommand = Command.make(
 		const project = yield* Project;
 		const packages = yield* InstalledPackages;
 		const git = yield* Git;
-		yield* git.ensureReady;
 
 		let manifest = yield* project.readManifest;
 		const unknown = names.filter((name) => manifest.repos[name] === undefined);
@@ -34,6 +33,9 @@ export const syncCommand = Command.make(
 			yield* Console.log("No vendored repositories to sync.");
 			return;
 		}
+		// Only the checkouts must be clean: sync runs from postinstall, right
+		// after the package manager rewrote package.json and the lockfile.
+		yield* git.ensureClean(selected.map((name) => repoPrefix(manifest, name)));
 
 		let updated = 0;
 		for (const name of selected) {
@@ -80,6 +82,6 @@ export const syncCommand = Command.make(
 	}, reportErrors),
 ).pipe(
 	Command.withDescription(
-		"Pull vendored repos to the git tags matching installed package versions",
+		"Pull vendored repos to the git tags matching installed package versions (runs from postinstall)",
 	),
 );
