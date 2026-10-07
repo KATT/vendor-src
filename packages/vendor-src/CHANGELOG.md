@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.1](https://github.com/KATT/vendor-src/compare/0.10.0...0.10.1) (2026-10-07)
+
+### Bug Fixes
+
+- vendor the fetched commit even when FETCH_HEAD changes concurrently ([#33](https://github.com/KATT/vendor-src/issues/33)) ([5d35bcf](https://github.com/KATT/vendor-src/commit/5d35bcfb46444dfb56b57717b57a5cfe15bed5a1))
+
 ## [0.10.0](https://github.com/KATT/vendor-src/compare/0.9.1...0.10.0) (2026-10-07)
 
 ### Features
