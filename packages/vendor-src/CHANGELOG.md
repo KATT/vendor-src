@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.15.0](https://github.com/KATT/vendor-src/compare/0.14.0...0.15.0) (2026-10-07)
+
+### ⚠ BREAKING CHANGES
+
+- `init` no longer writes tooling ignores or editor
+  excludes (existing configs are left as they are), and `mergeIgnoreFile`,
+  `mergeOxfmtConfig`, and `mergeVsCodeSettings` are no longer exported.
+- `vendor-src check --sync` is removed. A postinstall
+  that runs it fails until you re-run `vendor-src init` or change it to
+  `vendor-src check`.
+
+- AGENTS.md notes on Node (fnm) and the corepack/pnpm 12 mismatch ([#40](https://github.com/KATT/vendor-src/issues/40)) ([1d00dae](https://github.com/KATT/vendor-src/commit/1d00daef4f5baaa38326943479fb21cce137e9fa))
+- generate the README command reference from the CLI; concise README ([#44](https://github.com/KATT/vendor-src/issues/44)) ([d3c2bd4](https://github.com/KATT/vendor-src/commit/d3c2bd4a1109f446e235c8844524c4dbfd8f04cc)), references [#39](https://github.com/KATT/vendor-src/issues/39)
+- TypeScript bin, scripts in TypeScript + Effect, preMajor releases ([#41](https://github.com/KATT/vendor-src/issues/41)) ([65036ae](https://github.com/KATT/vendor-src/commit/65036ae01958cce0eccaf0c0d0f602db12ca3ba6)), references [#39](https://github.com/KATT/vendor-src/issues/39)
+
+### Features
+
+- init no longer writes formatter or editor configs; prints next steps ([#43](https://github.com/KATT/vendor-src/issues/43)), references [#39](https://github.com/KATT/vendor-src/issues/39)
+- postinstall runs `vendor-src check` and recommends `sync` ([#42](https://github.com/KATT/vendor-src/issues/42)), references [#39](https://github.com/KATT/vendor-src/issues/39)
+
 ## [0.14.0](https://github.com/KATT/vendor-src/compare/0.13.0...0.14.0) (2026-10-07)
 
 ### Features
