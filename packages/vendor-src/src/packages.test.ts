@@ -2,7 +2,11 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Layer, Option, Path } from "effect";
 
-import { InstalledPackages, parsePnpmWorkspacePackages } from "./packages.ts";
+import {
+	InstalledPackages,
+	parsePnpmWorkspacePackages,
+	suggestPackages,
+} from "./packages.ts";
 import { Project } from "./project.ts";
 import {
 	installPackage,
@@ -36,6 +40,57 @@ onlyBuiltDependencies:
 			"packages/*",
 			"tooling/*",
 		]);
+	});
+});
+
+describe("suggestPackages", () => {
+	const declared = [
+		"@tanstack/react-router",
+		"@tanstack/react-router-devtools",
+		"@tanstack/react-start",
+		"@tanstack/react-query",
+		"effect",
+		"react",
+		"zod",
+	].map((name) => ({ name, declaredIn: ["apps/web"] }));
+	const names = (query: string) =>
+		suggestPackages(query, declared).map(({ name }) => name);
+
+	it("puts name matches first, then the rest of the scope", () => {
+		assert.deepStrictEqual(names("@tanstack/router"), [
+			"@tanstack/react-router",
+			"@tanstack/react-router-devtools",
+			"@tanstack/react-query",
+			"@tanstack/react-start",
+		]);
+	});
+
+	it("ranks packages from a repo named like the query first", () => {
+		const router = "https://github.com/TanStack/router.git";
+		const withRepos = declared.map((dependency) =>
+			dependency.name === "@tanstack/react-start" ||
+			dependency.name === "@tanstack/react-router"
+				? { ...dependency, repository: router }
+				: dependency,
+		);
+		assert.deepStrictEqual(
+			suggestPackages("@tanstack/router", withRepos).map(({ name }) => name),
+			[
+				"@tanstack/react-router",
+				"@tanstack/react-start",
+				"@tanstack/react-router-devtools",
+				"@tanstack/react-query",
+			],
+		);
+	});
+
+	it("catches typos and unscoped names", () => {
+		assert.deepStrictEqual(names("efect"), ["effect"]);
+		assert.deepStrictEqual(names("react-start"), ["@tanstack/react-start"]);
+	});
+
+	it("suggests nothing for unrelated names", () => {
+		assert.deepStrictEqual(names("lodash"), []);
 	});
 });
 
