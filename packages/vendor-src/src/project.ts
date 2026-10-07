@@ -65,8 +65,8 @@ const PackageJsonFields = Schema.Struct({
 	scripts: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 });
 
-const POSTINSTALL = "vendor-src sync";
-const CHECK_COMMAND = /vendor-src check(?: --strict)?/;
+const POSTINSTALL = "vendor-src check --sync";
+const OWN_HOOKS = ["vendor-src check", "vendor-src sync"];
 
 const CheckoutPackageJson = Schema.fromJsonString(
 	Schema.Struct({ version: Schema.optionalKey(Schema.String) }),
@@ -81,7 +81,7 @@ export type PostinstallResult =
 	| {
 			readonly _tag: "Occupied";
 			readonly existing: string;
-			/** The same script, extended to also run `vendor-src sync`. */
+			/** The same script, extended to also run `vendor-src check --sync`. */
 			readonly suggested: string;
 	  };
 
@@ -121,7 +121,7 @@ export class Project extends Context.Service<
 			path: string,
 		) => Effect.Effect<Option.Option<string>, PlatformError>;
 		/**
-		 * Make `vendor-src sync` the project's `postinstall` script, unless
+		 * Make `vendor-src check --sync` the project's `postinstall` script, unless
 		 * another `postinstall` already exists.
 		 */
 		readonly ensurePostinstall: Effect.Effect<
@@ -325,14 +325,16 @@ export class Project extends Context.Service<
 			if (current.includes(POSTINSTALL)) {
 				return { _tag: "Ready", changed: [] } satisfies PostinstallResult;
 			}
-			// A bare `vendor-src check` is the hook vendor-src itself used to write.
-			if (current !== "" && current !== "vendor-src check") {
+			// Bare `vendor-src check` / `vendor-src sync` are hooks vendor-src itself used to write.
+			if (current !== "" && !OWN_HOOKS.includes(current)) {
+				const own = OWN_HOOKS.find((hook) => current.includes(hook));
 				return {
 					_tag: "Occupied",
 					existing: current,
-					suggested: CHECK_COMMAND.test(current)
-						? current.replace(CHECK_COMMAND, POSTINSTALL)
-						: `${current} && ${POSTINSTALL}`,
+					suggested:
+						own === undefined
+							? `${current} && ${POSTINSTALL}`
+							: current.replace(own, POSTINSTALL),
 				} satisfies PostinstallResult;
 			}
 			const updated = {

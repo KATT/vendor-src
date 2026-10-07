@@ -50,11 +50,13 @@ Set up vendor-src in this repo:
    If you add a new tool, exclude it before the first run.
 7. Prefer reading .repos/<name> as read-only reference. Do not import from
    .repos/ — keep importing the normal npm package.
-8. init adds a postinstall script that runs vendor-src sync, so dependency
-   upgrades re-vendor the matching tags automatically. If init warns that
-   package.json already has a postinstall, chain both in it as suggested.
-   The sync commits only the checkouts; commit vendor-src.json and the
-   AGENTS.md files together with the upgrade.
+8. init adds a postinstall script that runs vendor-src check --sync, so
+   dependency upgrades re-vendor the matching tags automatically. If init
+   warns that package.json already has a postinstall, chain both in it as
+   suggested. The sync commits only the checkouts; commit vendor-src.json and
+   the AGENTS.md files together with the upgrade. If it could not sync
+   (offline, CI, local edits in the checkout), it warns; run
+   pnpm exec vendor-src sync later.
 ```
 
 ## Usage
@@ -73,15 +75,17 @@ pnpm exec vendor-src check
 # Fail CI when vendored sources are stale
 pnpm exec vendor-src check --strict
 
+# Check, then sync only drifted repos; warns instead when that fails (postinstall)
+pnpm exec vendor-src check --sync
+
 # Pull drifted repos to the git tags matching currently installed versions
-# (runs automatically from postinstall)
 pnpm exec vendor-src sync
 
 pnpm exec vendor-src list   # alias: ls
 pnpm exec vendor-src remove effect   # alias: rm
 ```
 
-Commands work from any directory inside the project. Every command except `init` needs a `vendor-src.json` and says so when it is missing. `add`, `sync`, and `remove` also require at least one commit. `add` and `remove` require a clean working tree; `sync` only requires the checkouts it syncs to be clean, so it can run from `postinstall` while `package.json` and the lockfile are still uncommitted. Its commits contain only those checkouts. Each command prints the files it changed.
+Commands work from any directory inside the project. Every command except `init` needs a `vendor-src.json` and says so when it is missing. `add`, `sync`, and `remove` also require at least one commit. `add` and `remove` require a clean working tree; `sync` only requires the checkouts it syncs to be clean, so it can run right after an install while `package.json` and the lockfile are still uncommitted. Its commits contain only those checkouts. Each command prints the files it changed.
 
 `init` sets the project up:
 
@@ -91,7 +95,9 @@ Commands work from any directory inside the project. Every command except `init`
 - writes/merges `.oxfmtrc.json` `ignorePatterns` so Oxfmt skips `{dir}/`
 - if `.prettierignore` / `.eslintignore` already exist, merges `{dir}/` into them too (does not create those files)
 - merges editor excludes into `.vscode/settings.json`
-- sets the `postinstall` script to `vendor-src sync`, so installs re-vendor drifted repos. If `package.json` already has a different `postinstall`, `init` leaves it untouched and prints a warning with a script that runs both, e.g. `"postinstall": "husky && vendor-src sync"`
+- sets the `postinstall` script to `vendor-src check --sync`. If `package.json` already has a different `postinstall`, `init` leaves it untouched and prints a warning with a script that runs both, e.g. `"postinstall": "husky && vendor-src check --sync"`
+
+`check --sync` is built for `postinstall`: the drift check only compares `vendor-src.json` with the installed `package.json` versions, so an install with nothing to update stays fast and never runs git or touches the network. Only drifted repos are synced, each on its own. When a sync fails (offline, missing tag, local edits in the checkout) or the `CI` environment variable is set, it prints the drift and a hint to run `vendor-src sync` instead, and exits 0 so the install still succeeds (add `--strict` to fail).
 
 Re-running `init` keeps the existing `vendor-src.json` and re-applies the rest, so it is also the way to restore deleted ignores or the `postinstall` hook, or to apply a `dir` you changed by hand. It refuses `--dir` / `--root-agents-md` values that contradict the existing file; edit `vendor-src.json` instead.
 

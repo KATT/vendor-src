@@ -251,7 +251,7 @@ describe("Project.ensurePostinstall", () => {
 		return { result, written: yield* readFile(root, "package.json") };
 	});
 
-	it.effect("adds vendor-src sync and preserves key order", () =>
+	it.effect("adds vendor-src check --sync and preserves key order", () =>
 		Effect.gen(function* () {
 			const { result, written } = yield* ensureWith(
 				packageJson(`    "build": "tsc"`),
@@ -263,28 +263,32 @@ describe("Project.ensurePostinstall", () => {
 			assert.strictEqual(
 				written,
 				packageJson(
-					`    "build": "tsc",\n    "postinstall": "vendor-src sync"`,
+					`    "build": "tsc",\n    "postinstall": "vendor-src check --sync"`,
 				),
 			);
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 
-	it.effect("upgrades a bare vendor-src check hook to sync", () =>
+	it.effect("upgrades the bare hooks vendor-src used to write", () =>
 		Effect.gen(function* () {
-			const { result, written } = yield* ensureWith(
-				packageJson(`    "postinstall": "vendor-src check"`),
-			);
-			assert.strictEqual(result._tag, "Ready");
-			assert.strictEqual(
-				written,
-				packageJson(`    "postinstall": "vendor-src sync"`),
-			);
+			for (const hook of ["vendor-src check", "vendor-src sync"]) {
+				const { result, written } = yield* ensureWith(
+					packageJson(`    "postinstall": "${hook}"`),
+				);
+				assert.strictEqual(result._tag, "Ready");
+				assert.strictEqual(
+					written,
+					packageJson(`    "postinstall": "vendor-src check --sync"`),
+				);
+			}
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 
-	it.effect("leaves a postinstall that already syncs alone", () =>
+	it.effect("leaves a postinstall that already runs check --sync alone", () =>
 		Effect.gen(function* () {
-			const raw = packageJson(`    "postinstall": "husky && vendor-src sync"`);
+			const raw = packageJson(
+				`    "postinstall": "husky && vendor-src check --sync"`,
+			);
 			const { result, written } = yield* ensureWith(raw);
 			assert.deepStrictEqual(result, { _tag: "Ready", changed: [] });
 			assert.strictEqual(written, raw);
@@ -294,9 +298,10 @@ describe("Project.ensurePostinstall", () => {
 	it.effect("never rewrites another postinstall and suggests one", () =>
 		Effect.gen(function* () {
 			for (const [existing, suggested] of [
-				["husky", "husky && vendor-src sync"],
-				["husky && vendor-src check", "husky && vendor-src sync"],
-				["vendor-src check --strict", "vendor-src sync"],
+				["husky", "husky && vendor-src check --sync"],
+				["husky && vendor-src check", "husky && vendor-src check --sync"],
+				["vendor-src check --strict", "vendor-src check --sync --strict"],
+				["husky && vendor-src sync", "husky && vendor-src check --sync"],
 			] as const) {
 				const raw = packageJson(`    "postinstall": "${existing}"`);
 				const { result, written } = yield* ensureWith(raw);
