@@ -46,10 +46,7 @@ export const resolveInstalledSource = Effect.fn("resolveInstalledSource")(
 			});
 		}
 		const packageName = installed.value.name ?? target;
-		const version = Option.getOrElse(
-			yield* packages.version(packageName),
-			() => installed.value.version,
-		);
+		const version = installed.value.version;
 		const url = normalizeRepositoryUrl(installed.value.repository);
 		if (url === undefined) {
 			return yield* new CommandError({

@@ -100,6 +100,43 @@ describe("InstalledPackages", () => {
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 
+	it.effect(
+		"finds packages installed only in a workspace package, preferring the highest version",
+		() =>
+			Effect.gen(function* () {
+				const path = yield* Path.Path;
+				const root = yield* makeProject(yield* tempDir, {
+					"pnpm-workspace.yaml": "packages:\n  - apps/*\n",
+					"apps/web/package.json": "{}",
+					"apps/docs/package.json": "{}",
+				});
+				yield* installPackage(
+					path.join(root, "apps", "web"),
+					"@scope/pkg",
+					"1.2.3",
+					"github:org/pkg",
+				);
+				yield* installPackage(
+					path.join(root, "apps", "docs"),
+					"@scope/pkg",
+					"1.10.0",
+					"github:org/pkg-next",
+				);
+
+				const pkg = yield* InstalledPackages.use((packages) =>
+					packages.packageJson("@scope/pkg"),
+				).pipe(Effect.provide(layerAt(root)));
+
+				assert.deepStrictEqual(
+					Option.map(pkg, ({ version, repository }) => ({
+						version,
+						repository,
+					})),
+					Option.some({ version: "1.10.0", repository: "github:org/pkg-next" }),
+				);
+			}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
 	it.effect("picks the highest version installed across the workspace", () =>
 		Effect.gen(function* () {
 			const path = yield* Path.Path;
