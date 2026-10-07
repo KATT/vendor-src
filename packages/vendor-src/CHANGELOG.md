@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.0](https://github.com/KATT/vendor-src/compare/0.9.1...0.10.0) (2026-10-07)
+
+### Features
+
+- **add:** suggest matching dependencies when a package is not installed ([#32](https://github.com/KATT/vendor-src/issues/32)) ([9f8b2f4](https://github.com/KATT/vendor-src/commit/9f8b2f47ad1caf855d50d8a177d2eb60c3272905))
+
 ## [0.9.1](https://github.com/KATT/vendor-src/compare/0.9.0...0.9.1) (2026-10-07)
 
 ### Bug Fixes
