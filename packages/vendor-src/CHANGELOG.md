@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.0](https://github.com/KATT/vendor-src/compare/0.7.0...0.8.0) (2026-10-07)
+
+### Features
+
+- remove the adopt command ([#28](https://github.com/KATT/vendor-src/issues/28)) ([ad44734](https://github.com/KATT/vendor-src/commit/ad447340bf4f534e66c9f9c0db9212230ecf37d6))
+
 ## [0.7.0](https://github.com/KATT/vendor-src/compare/0.6.1...0.7.0) (2026-10-07)
 
 ### Features
