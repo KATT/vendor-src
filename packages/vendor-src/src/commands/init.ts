@@ -99,7 +99,19 @@ export const initCommand = Command.make(
 
 		changed.push(...(yield* project.writeAgentsMd(manifest)));
 		changed.push(...(yield* project.writeEditorIgnores(manifest)));
-		changed.push(...(yield* project.ensurePostinstall));
+		const postinstall = yield* project.ensurePostinstall;
+		if (postinstall._tag === "Ready") {
+			changed.push(...postinstall.changed);
+		} else {
+			yield* Console.error(
+				[
+					"vendor-src: package.json already has a postinstall script; left it unchanged:",
+					`  "postinstall": ${JSON.stringify(postinstall.existing)}`,
+					"To also sync vendored sources after every install, run both from it, e.g.:",
+					`  "postinstall": ${JSON.stringify(postinstall.suggested)}`,
+				].join("\n"),
+			);
+		}
 
 		if (changed.length === 0) {
 			yield* Console.log("Already set up; nothing changed.");
@@ -122,7 +134,7 @@ export const initCommand = Command.make(
 	}, reportErrors),
 ).pipe(
 	Command.withDescription(
-		"Set up vendor-src: create vendor-src.json, AGENTS.md files, tooling ignores, and the postinstall check (safe to re-run)",
+		"Set up vendor-src: create vendor-src.json, AGENTS.md files, tooling ignores, and the postinstall sync (safe to re-run)",
 	),
 	Command.withExamples([
 		{

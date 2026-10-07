@@ -13,7 +13,7 @@
 		"test": "vp -C packages/vendor-src test",
 		"typecheck": "pnpm --filter vendor-src typecheck",
 		"check": "vp check",
-		"postinstall": "node ./scripts/workspace-check.mjs"
+		"postinstall": "node ./scripts/workspace-sync.mjs"
 	},
 	"devDependencies": {
 		"@release-it/conventional-changelog": "12.0.2",
