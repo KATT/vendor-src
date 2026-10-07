@@ -15,13 +15,12 @@ import {
 	removeRepo,
 	repoPrefix,
 	setRepo,
-	SiblingPackage,
 	VendoredRepo,
 	type VendoredRepo as VendoredRepoType,
 } from "./manifest.ts";
 
 const effect: VendoredRepoType = {
-	package: "effect",
+	packages: ["effect"],
 	url: "https://github.com/Effect-TS/effect.git",
 	version: "4.0.1",
 	ref: "effect@4.0.1",
@@ -72,12 +71,26 @@ describe("decodeManifest", () => {
 				JSON.stringify({
 					dir: ".repos",
 					rootAgentsMd: true,
-					repos: { effect: { package: "effect" } },
+					repos: { effect: { packages: ["effect"] } },
 				}),
 			).pipe(Effect.flip);
 			assert.strictEqual(error._tag, "ManifestError");
 			assert.include(error.message, "vendor-src.json is invalid");
 			assert.include(error.message, "url");
+		}),
+	);
+
+	it.effect("rejects repos without a packages list", () =>
+		Effect.gen(function* () {
+			const { packages: _, ...withoutPackages } = effect;
+			const error = yield* decodeManifest(
+				JSON.stringify({
+					dir: ".repos",
+					rootAgentsMd: true,
+					repos: { effect: { ...withoutPackages, package: "effect" } },
+				}),
+			).pipe(Effect.flip);
+			assert.include(error.message, "packages");
 		}),
 	);
 
@@ -127,8 +140,7 @@ describe("setRepo / removeRepo", () => {
 describe("findRepoByUrl / findVendoredPackage", () => {
 	const manifest = setRepo(emptyManifest, "effect", {
 		...effect,
-		directory: "packages/effect",
-		siblings: [{ package: "@effect/platform", directory: "packages/platform" }],
+		packages: ["effect", "@effect/platform"],
 	});
 
 	it("matches repo URLs case-insensitively and with or without .git", () => {
@@ -141,21 +153,17 @@ describe("findRepoByUrl / findVendoredPackage", () => {
 		);
 	});
 
-	it("finds pins and siblings by package name", () => {
+	it("finds the pinning and shared packages by name", () => {
 		assert.strictEqual(findVendoredPackage(manifest, "effect")?.role, "pin");
 		assert.strictEqual(
 			findVendoredPackage(manifest, "@effect/platform")?.role,
-			"sibling",
+			"shared",
 		);
 		assert.isUndefined(findVendoredPackage(manifest, "zod"));
 	});
 
-	it("omits empty siblings", () => {
-		const cleared = setRepo(manifest, "effect", {
-			...manifest.repos.effect!,
-			siblings: [],
-		});
-		assert.notProperty(cleared.repos.effect, "siblings");
+	it("rejects an empty package list", () => {
+		assert.isFalse(Schema.is(VendoredRepo)({ ...effect, packages: [] }));
 	});
 });
 
@@ -164,7 +172,7 @@ describe("findDrift", () => {
 		const manifest = setRepo(
 			setRepo(emptyManifest, "effect", { ...effect, version: "4.0.0" }),
 			"other",
-			{ ...effect, package: "other" },
+			{ ...effect, packages: ["other"] },
 		);
 		assert.deepStrictEqual(
 			findDrift(manifest, new Map([["effect", "4.0.1"]])),
@@ -197,10 +205,6 @@ describe("published JSON schema", () => {
 		properties: Record<string, unknown>;
 		$defs: {
 			vendoredRepo: { required: string[]; properties: Record<string, unknown> };
-			siblingPackage: {
-				required: string[];
-				properties: Record<string, unknown>;
-			};
 		};
 	};
 
@@ -213,13 +217,6 @@ describe("published JSON schema", () => {
 			Object.keys(jsonSchema.$defs.vendoredRepo.properties).toSorted(),
 			Object.keys(VendoredRepo.fields).toSorted(),
 		);
-		assert.deepStrictEqual(
-			Object.keys(jsonSchema.$defs.siblingPackage.properties).toSorted(),
-			Object.keys(SiblingPackage.fields).toSorted(),
-		);
-		assert.deepStrictEqual(jsonSchema.$defs.siblingPackage.required, [
-			"package",
-		]);
 	});
 
 	it("requires dir, rootAgentsMd and repos at the top level", () => {

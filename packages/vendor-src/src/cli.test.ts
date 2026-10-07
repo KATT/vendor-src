@@ -92,7 +92,7 @@ describe("vendor-src CLI", () => {
 			);
 			assert.deepStrictEqual(added.repos, {
 				lib: {
-					package: "lib",
+					packages: ["lib"],
 					url: upstream,
 					version: "1.0.0",
 					ref: "lib@1.0.0",
@@ -547,24 +547,23 @@ describe("vendor-src with monorepo packages", () => {
 				yield* readFile(project, "vendor-src.json"),
 			);
 			assert.deepStrictEqual(Object.keys(manifest.repos), ["mono"]);
-			assert.deepStrictEqual(manifest.repos.mono?.directory, "packages/a");
-			assert.deepStrictEqual(manifest.repos.mono?.siblings, [
-				{ package: "@scope/b", directory: "packages/b" },
+			assert.deepStrictEqual(manifest.repos.mono?.packages, [
+				"@scope/a",
+				"@scope/b",
 			]);
-			const agents = yield* readFile(project, "AGENTS.md");
-			assert.include(agents, "- `@scope/a@1.0.0` → `.repos/mono/packages/a`");
 			assert.include(
-				agents,
-				"- `@scope/b@2.0.0` → `.repos/mono/packages/b` (same checkout, pinned to `@scope/a@1.0.0`)",
+				yield* readFile(project, "AGENTS.md"),
+				"- `@scope/a@1.0.0`, `@scope/b` → `.repos/mono`",
 			);
-			const vendorAgents = yield* readFile(project, ".repos", "AGENTS.md");
-			assert.include(vendorAgents, "- `mono/` — pinned to `@scope/a@1.0.0`");
-			assert.include(vendorAgents, "  - `@scope/b@2.0.0` → `packages/b/`");
+			assert.include(
+				yield* readFile(project, ".repos", "AGENTS.md"),
+				"- `mono/` — `@scope/a@1.0.0`, `@scope/b`",
+			);
 			git(project, "add", "-A");
 			git(project, "commit", "-qm", "track b");
 
 			yield* vendorSrc(project, "list");
-			assert.include(yield* logOutput, "  + @scope/b@2.0.0\tvia @scope/a\tok");
+			assert.include(yield* logOutput, "  + @scope/b\tinstalled 2.0.0");
 
 			const again = yield* vendorSrc(project, "add", "@scope/b").pipe(
 				Effect.flip,
@@ -598,46 +597,12 @@ describe("vendor-src with monorepo packages", () => {
 			const dropped = yield* decodeManifest(
 				yield* readFile(project, "vendor-src.json"),
 			);
-			assert.isUndefined(dropped.repos.mono?.siblings);
+			assert.deepStrictEqual(dropped.repos.mono?.packages, ["@scope/a"]);
 			git(project, "add", "-A");
 			git(project, "commit", "-qm", "drop b");
 
 			yield* vendorSrc(project, "remove", "@scope/a");
 			assert.isFalse(yield* exists(project, ".repos", "mono"));
-		}).pipe(Effect.provide(TestLayer)),
-	);
-
-	it.live("sync records package directories missing from older entries", () =>
-		Effect.gen(function* () {
-			const path = yield* Path.Path;
-			const root = yield* tempDir;
-			const upstream = yield* makeUpstream(root, "lib", [
-				{ version: "1.0.0", files: { "packages/lib/index.ts": "export {}\n" } },
-			]);
-			const project = yield* makeProject(path.join(root, "project"));
-			yield* installPackage(project, "lib", "1.0.0", upstream);
-			yield* initAndCommit(project);
-			yield* vendorSrc(project, "add", "lib");
-			git(project, "add", "-A");
-			git(project, "commit", "-qm", "vendor lib");
-			const before = yield* decodeManifest(
-				yield* readFile(project, "vendor-src.json"),
-			);
-			assert.isUndefined(before.repos.lib?.directory);
-
-			yield* installPackage(project, "lib", "1.0.0", {
-				url: upstream,
-				directory: "packages/lib",
-			});
-			yield* vendorSrc(project, "sync");
-			const after = yield* decodeManifest(
-				yield* readFile(project, "vendor-src.json"),
-			);
-			assert.strictEqual(after.repos.lib?.directory, "packages/lib");
-			assert.include(
-				yield* readFile(project, "AGENTS.md"),
-				"- `lib@1.0.0` → `.repos/lib/packages/lib`",
-			);
 		}).pipe(Effect.provide(TestLayer)),
 	);
 

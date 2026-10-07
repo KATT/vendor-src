@@ -11,7 +11,7 @@ import {
 
 const effectRepo = {
 	name: "effect",
-	package: "effect",
+	packages: ["effect"],
 	path: ".repos/effect",
 	version: "4.0.1",
 	ref: "effect@4.0.1",
@@ -23,7 +23,7 @@ describe(renderAgentsBlock, () => {
 			[
 				{
 					name: "effect",
-					package: "effect",
+					packages: ["effect"],
 					path: "vendor/effect",
 					version: "4.0.1",
 				},
@@ -75,49 +75,29 @@ describe(renderVendorDirAgentsMd, () => {
 describe("monorepo checkouts", () => {
 	const router = {
 		name: "router",
-		package: "@tanstack/react-start",
+		packages: ["@tanstack/react-start", "@tanstack/react-router"],
 		path: ".repos/router",
 		version: "1.168.60",
 		ref: "@tanstack/react-start@1.168.60",
-		directory: "packages/react-start",
 	};
 
-	it("points a single package at its directory", () => {
+	it("lists every package in the checkout, pinned one first", () => {
 		expect(renderAgentsBlock([router], ".repos")).toContain(
-			"- `@tanstack/react-start@1.168.60` → `.repos/router/packages/react-start`",
+			"- `@tanstack/react-start@1.168.60`, `@tanstack/react-router` → `.repos/router`",
 		);
 		const md = renderVendorDirAgentsMd([router], ".repos");
 		expect(md).toContain(
-			"- `router/` — `@tanstack/react-start@1.168.60` — source in `packages/react-start/`",
-		);
-		expect(md).not.toContain("share one checkout");
-	});
-
-	it("lists siblings under the pinned checkout", () => {
-		const withSibling = {
-			...router,
-			siblings: [
-				{
-					package: "@tanstack/react-router",
-					directory: "packages/react-router",
-					version: "1.170.41",
-				},
-			],
-		};
-		expect(renderAgentsBlock([withSibling], ".repos")).toContain(
-			"- `@tanstack/react-router@1.170.41` → `.repos/router/packages/react-router` (same checkout, pinned to `@tanstack/react-start@1.168.60`)",
-		);
-		const md = renderVendorDirAgentsMd([withSibling], ".repos");
-		expect(md).toContain(
-			"- `router/` — pinned to `@tanstack/react-start@1.168.60`",
-		);
-		expect(md).toContain(
-			"  - `@tanstack/react-start@1.168.60` → `packages/react-start/`",
-		);
-		expect(md).toContain(
-			"  - `@tanstack/react-router@1.170.41` → `packages/react-router/`",
+			"- `router/` — `@tanstack/react-start@1.168.60`, `@tanstack/react-router`",
 		);
 		expect(md).toContain("share one checkout");
+	});
+
+	it("explains shared checkouts only when there is one", () => {
+		const md = renderVendorDirAgentsMd(
+			[{ ...router, packages: ["@tanstack/react-start"] }],
+			".repos",
+		);
+		expect(md).not.toContain("share one checkout");
 	});
 });
 
@@ -125,7 +105,7 @@ describe(upsertAgentsBlock, () => {
 	it("creates a file when none exists", () => {
 		const result = upsertAgentsBlock(
 			undefined,
-			[{ name: "effect", package: "effect", path: ".repos/effect" }],
+			[{ name: "effect", packages: ["effect"], path: ".repos/effect" }],
 			".repos",
 		);
 		expect(result).toContain(AGENTS_START);
@@ -145,7 +125,7 @@ old
 `;
 		const result = upsertAgentsBlock(
 			existing,
-			[{ name: "effect", package: "effect", path: ".repos/effect" }],
+			[{ name: "effect", packages: ["effect"], path: ".repos/effect" }],
 			".repos",
 		);
 		expect(result).toContain("# Project");
@@ -164,7 +144,7 @@ ${AGENTS_END}
 			[
 				{
 					name: "effect",
-					package: "effect",
+					packages: ["effect"],
 					path: ".repos/effect",
 					version: "4.0.1",
 				},
@@ -176,7 +156,9 @@ ${AGENTS_END}
 });
 
 describe(removeAgentsBlock, () => {
-	const repos = [{ name: "effect", package: "effect", path: ".repos/effect" }];
+	const repos = [
+		{ name: "effect", packages: ["effect"], path: ".repos/effect" },
+	];
 
 	it("removes a trailing block", () => {
 		const existing = "# Project\n\nIntro.\n";

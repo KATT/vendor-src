@@ -230,34 +230,13 @@ export class Project extends Context.Service<
 			manifest: Manifest,
 		) {
 			const dir = vendorDir(manifest);
-			const repos: AgentsRepoLine[] = yield* Effect.forEach(
-				Object.entries(manifest.repos),
-				Effect.fnUntraced(function* ([name, repo]) {
-					const path = repoPrefix(manifest, name);
-					const siblings = yield* Effect.forEach(
-						repo.siblings ?? [],
-						Effect.fnUntraced(function* (sibling) {
-							const version = yield* checkoutPackageVersion(
-								sibling.directory === undefined
-									? path
-									: `${path}/${sibling.directory}`,
-							);
-							return {
-								package: sibling.package,
-								directory: sibling.directory,
-								version: Option.getOrUndefined(version),
-							};
-						}),
-					);
-					return {
-						name,
-						package: repo.package,
-						path,
-						version: repo.version,
-						ref: repo.ref,
-						directory: repo.directory,
-						siblings,
-					};
+			const repos: AgentsRepoLine[] = Object.entries(manifest.repos).map(
+				([name, repo]) => ({
+					name,
+					packages: repo.packages,
+					path: repoPrefix(manifest, name),
+					version: repo.version,
+					ref: repo.ref,
 				}),
 			);
 

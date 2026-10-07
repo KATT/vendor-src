@@ -2,11 +2,10 @@ import { Console, Effect, Option } from "effect";
 import { Argument, Command } from "effect/cli";
 
 import { Git } from "../git.ts";
-import { repoPrefix, setRepo } from "../manifest.ts";
+import { pinnedPackage, repoPrefix, setRepo } from "../manifest.ts";
 import { InstalledPackages } from "../packages.ts";
 import { Project } from "../project.ts";
 import { pruneIgnoredPaths } from "../prune.ts";
-import { repositoryDirectory } from "../repository.ts";
 import { CommandError, reportErrors } from "./shared.ts";
 
 export const syncCommand = Command.make(
@@ -36,32 +35,20 @@ export const syncCommand = Command.make(
 			return;
 		}
 
-		const installedDirectory = (packageName: string) =>
-			Effect.map(packages.packageJson(packageName), (pkg) =>
-				Option.isSome(pkg)
-					? repositoryDirectory(pkg.value.repository)
-					: undefined,
-			);
-
 		let updated = 0;
 		for (const name of selected) {
 			const entry = manifest.repos[name]!;
-			const installed = yield* packages.version(entry.package);
+			const pin = pinnedPackage(entry);
+			const installed = yield* packages.version(pin);
 			if (Option.isNone(installed)) {
-				yield* Console.error(
-					`Skipping ${name}: ${entry.package} is not installed`,
-				);
+				yield* Console.error(`Skipping ${name}: ${pin} is not installed`);
 				continue;
 			}
 
 			if (installed.value === entry.version) {
 				yield* Console.log(`${name}: already at ${entry.version}`);
 			} else {
-				const ref = yield* git.resolveTag(
-					entry.url,
-					entry.package,
-					installed.value,
-				);
+				const ref = yield* git.resolveTag(entry.url, pin, installed.value);
 				yield* Console.log(
 					`Syncing ${name}: ${entry.version} -> ${installed.value} (${ref})`,
 				);
@@ -73,26 +60,6 @@ export const syncCommand = Command.make(
 				});
 				updated += 1;
 			}
-
-			// Backfill package paths for entries added before they were recorded.
-			const current = manifest.repos[name]!;
-			const directory =
-				current.directory ?? (yield* installedDirectory(current.package));
-			const siblings = yield* Effect.forEach(
-				current.siblings ?? [],
-				Effect.fnUntraced(function* (sibling) {
-					const found =
-						sibling.directory ?? (yield* installedDirectory(sibling.package));
-					return found === undefined
-						? sibling
-						: { ...sibling, directory: found };
-				}),
-			);
-			manifest = setRepo(manifest, name, {
-				...current,
-				...(directory === undefined ? {} : { directory }),
-				siblings,
-			});
 
 			// Always prune so ignore-pattern edits apply without a version bump.
 			yield* pruneIgnoredPaths(manifest, name);

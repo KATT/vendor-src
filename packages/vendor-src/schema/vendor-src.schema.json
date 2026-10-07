@@ -34,12 +34,17 @@
 		"vendoredRepo": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["package", "url", "version", "ref"],
+			"required": ["packages", "url", "version", "ref"],
 			"properties": {
-				"package": {
-					"type": "string",
-					"description": "npm package whose installed version pins this checkout's tag.",
-					"minLength": 1
+				"packages": {
+					"type": "array",
+					"description": "npm packages whose source lives in this checkout. The first one's installed version pins version and ref; the rest come from the same repo and share the checkout.",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					},
+					"minItems": 1,
+					"uniqueItems": true
 				},
 				"url": {
 					"type": "string",
@@ -56,16 +61,6 @@
 					"description": "Git ref/tag that was vendored (often package@version).",
 					"minLength": 1
 				},
-				"directory": {
-					"type": "string",
-					"description": "Path of package inside the repo (from its package.json repository.directory), e.g. packages/react-start.",
-					"minLength": 1
-				},
-				"siblings": {
-					"type": "array",
-					"description": "Other installed npm packages published from the same repo. They share this checkout instead of getting their own; its tag follows package.",
-					"items": { "$ref": "#/$defs/siblingPackage" }
-				},
 				"ignore": {
 					"type": "array",
 					"description": "Globs matched against paths relative to this vendored repo root (posix). There are no built-in defaults — only these patterns (and --ignore on add) are pruned. A pattern ending in /** also matches the directory itself.",
@@ -74,23 +69,6 @@
 						"minLength": 1
 					},
 					"uniqueItems": true
-				}
-			}
-		},
-		"siblingPackage": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["package"],
-			"properties": {
-				"package": {
-					"type": "string",
-					"description": "npm package name.",
-					"minLength": 1
-				},
-				"directory": {
-					"type": "string",
-					"description": "Path of the package inside the repo, e.g. packages/react-router.",
-					"minLength": 1
 				}
 			}
 		}

@@ -35,20 +35,19 @@ export const removeCommand = Command.make(
 					? byPackage.name
 					: undefined;
 
-		if (checkout === undefined && byPackage?.role === "sibling") {
+		if (checkout === undefined && byPackage?.role === "shared") {
 			const prefix = repoPrefix(manifest, byPackage.name);
+			const [pin, ...shared] = byPackage.repo.packages;
 			const updated = setRepo(manifest, byPackage.name, {
 				...byPackage.repo,
-				siblings: (byPackage.repo.siblings ?? []).filter(
-					(sibling) => sibling.package !== name,
-				),
+				packages: [pin, ...shared.filter((other) => other !== name)],
 			});
 			const changed = [
 				...(yield* project.writeManifest(updated)),
 				...(yield* project.writeAgentsMd(updated)),
 			];
 			yield* Console.log(
-				`Stopped tracking ${name} in ${prefix}; the checkout stays (pinned by ${byPackage.repo.package}). Commit: ${changed.join(", ")}`,
+				`Stopped tracking ${name} in ${prefix}; the checkout stays (pinned by ${pin}). Commit: ${changed.join(", ")}`,
 			);
 			return;
 		}
@@ -61,11 +60,11 @@ export const removeCommand = Command.make(
 
 		const repo = manifest.repos[checkout]!;
 		const prefix = repoPrefix(manifest, checkout);
-		const siblings = (repo.siblings ?? []).map((sibling) => sibling.package);
-		if (checkout !== name && siblings.length > 0) {
+		const shared = repo.packages.slice(1);
+		if (checkout !== name && shared.length > 0) {
 			return yield* new CommandError({
 				message:
-					`${name} pins ${prefix}, which also holds ${siblings.join(", ")}.\n` +
+					`${name} pins ${prefix}, which also holds ${shared.join(", ")}.\n` +
 					`Remove the whole checkout with: vendor-src remove ${checkout}`,
 			});
 		}
@@ -77,8 +76,7 @@ export const removeCommand = Command.make(
 			...(yield* project.writeManifest(updated)),
 			...(yield* project.writeAgentsMd(updated)),
 		];
-		const also =
-			siblings.length > 0 ? ` (also held ${siblings.join(", ")})` : "";
+		const also = shared.length > 0 ? ` (also held ${shared.join(", ")})` : "";
 		yield* Console.log(
 			`Removed ${prefix}${also}. Commit: ${[prefix, ...changed].join(", ")}`,
 		);

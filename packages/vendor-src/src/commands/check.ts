@@ -2,7 +2,7 @@ import { Console, Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";
 
 import { isLegacyRegexIgnorePattern } from "../ignore.ts";
-import { findDrift } from "../manifest.ts";
+import { findDrift, pinnedPackage } from "../manifest.ts";
 import { InstalledPackages } from "../packages.ts";
 import { Project } from "../project.ts";
 import { CommandError, reportErrors } from "./shared.ts";
@@ -34,9 +34,9 @@ export const checkCommand = Command.make(
 
 		const installed = new Map<string, string>();
 		for (const repo of Object.values(manifest.repos)) {
-			const version = yield* packages.version(repo.package);
+			const version = yield* packages.version(pinnedPackage(repo));
 			if (Option.isSome(version)) {
-				installed.set(repo.package, version.value);
+				installed.set(pinnedPackage(repo), version.value);
 			}
 		}
 

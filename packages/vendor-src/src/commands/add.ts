@@ -2,7 +2,12 @@ import { Console, Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 
 import { Git } from "../git.ts";
-import { findRepoByUrl, repoPrefix, setRepo } from "../manifest.ts";
+import {
+	findRepoByUrl,
+	pinnedPackage,
+	repoPrefix,
+	setRepo,
+} from "../manifest.ts";
 import { Project } from "../project.ts";
 import { pruneIgnoredPaths } from "../prune.ts";
 import {
@@ -79,7 +84,7 @@ export const addCommand = Command.make(
 		if (sameRepo !== undefined) {
 			const [existingName, existing] = sameRepo;
 			const existingPrefix = repoPrefix(manifest, existingName);
-			const pinned = `${existing.package}@${existing.version}`;
+			const pinned = `${pinnedPackage(existing)}@${existing.version}`;
 			const conflict = fromGitUrl
 				? `${source.url} is already vendored at ${existingPrefix}`
 				: Option.isSome(name) && name.value !== existingName
@@ -91,17 +96,15 @@ export const addCommand = Command.make(
 				return yield* new CommandError({ message: conflict });
 			}
 
-			const sibling = {
-				package: source.packageName,
-				...(source.directory === undefined
-					? {}
-					: { directory: source.directory }),
-			};
+			const [pin, ...shared] = existing.packages;
 			const updated = setRepo(manifest, existingName, {
 				...existing,
-				siblings: [...(existing.siblings ?? []), sibling].toSorted((a, b) =>
-					a.package.localeCompare(b.package),
-				),
+				packages: [
+					pin,
+					...[...shared, source.packageName].toSorted((a, b) =>
+						a.localeCompare(b),
+					),
+				],
 				ignore: [...new Set([...(existing.ignore ?? []), ...ignore])],
 			});
 			if (ignore.length > 0) {
@@ -122,7 +125,7 @@ export const addCommand = Command.make(
 				onSome: (version) =>
 					version === source.version
 						? ` (${version}, same as installed)`
-						: ` (${version} in the checkout, ${source.version} installed; the checkout follows ${existing.package})`,
+						: ` (${version} in the checkout, ${source.version} installed; the checkout follows ${pin})`,
 			});
 			yield* Console.log(
 				[
@@ -162,13 +165,10 @@ export const addCommand = Command.make(
 		yield* git.subtreeAdd(prefix, source.url, gitRef);
 
 		const updated = setRepo(manifest, vendorName, {
-			package: source.packageName,
+			packages: [source.packageName],
 			url: source.url,
 			version: source.version,
 			ref: gitRef,
-			...(source.directory === undefined
-				? {}
-				: { directory: source.directory }),
 			ignore,
 		});
 		yield* pruneIgnoredPaths(updated, vendorName);
