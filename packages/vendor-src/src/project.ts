@@ -65,8 +65,11 @@ const PackageJsonFields = Schema.Struct({
 	scripts: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 });
 
-const POSTINSTALL = "vendor-src check --sync";
-const OWN_HOOKS = ["vendor-src check", "vendor-src sync"];
+const POSTINSTALL = "vendor-src check";
+/** Hooks vendor-src itself used to write; safe to overwrite. */
+const LEGACY_HOOKS = ["vendor-src check --sync", "vendor-src sync"];
+/** A `vendor-src check` / `sync` call, with its flags, inside a longer script. */
+const OWN_HOOK = /vendor-src (?:check|sync)(?: --[\w-]+)*/;
 
 const CheckoutPackageJson = Schema.fromJsonString(
 	Schema.Struct({ version: Schema.optionalKey(Schema.String) }),
@@ -81,7 +84,7 @@ export type PostinstallResult =
 	| {
 			readonly _tag: "Occupied";
 			readonly existing: string;
-			/** The same script, extended to also run `vendor-src check --sync`. */
+			/** The same script, extended to also run `vendor-src check`. */
 			readonly suggested: string;
 	  };
 
@@ -121,7 +124,7 @@ export class Project extends Context.Service<
 			path: string,
 		) => Effect.Effect<Option.Option<string>, PlatformError>;
 		/**
-		 * Make `vendor-src check --sync` the project's `postinstall` script, unless
+		 * Make `vendor-src check` the project's `postinstall` script, unless
 		 * another `postinstall` already exists.
 		 */
 		readonly ensurePostinstall: Effect.Effect<
@@ -322,12 +325,11 @@ export class Project extends Context.Service<
 				return { _tag: "Ready", changed: [] } satisfies PostinstallResult;
 			}
 			const current = scripts?.postinstall?.trim() ?? "";
-			if (current.includes(POSTINSTALL)) {
+			const own = current.match(OWN_HOOK)?.[0];
+			if (own?.startsWith(POSTINSTALL) && !own.includes("--sync")) {
 				return { _tag: "Ready", changed: [] } satisfies PostinstallResult;
 			}
-			// Bare `vendor-src check` / `vendor-src sync` are hooks vendor-src itself used to write.
-			if (current !== "" && !OWN_HOOKS.includes(current)) {
-				const own = OWN_HOOKS.find((hook) => current.includes(hook));
+			if (current !== "" && !LEGACY_HOOKS.includes(current)) {
 				return {
 					_tag: "Occupied",
 					existing: current,
