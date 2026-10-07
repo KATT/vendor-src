@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.13.0](https://github.com/KATT/vendor-src/compare/0.12.0...0.13.0) (2026-10-07)
+
+### Features
+
+- run vendor-src sync from postinstall, never overwrite an existing postinstall ([#37](https://github.com/KATT/vendor-src/issues/37)) ([d00284e](https://github.com/KATT/vendor-src/commit/d00284ec2c07f16c3ad3f239eb58134d62255735))
+
 ## [0.12.0](https://github.com/KATT/vendor-src/compare/0.11.0...0.12.0) (2026-10-07)
 
 ### Features
