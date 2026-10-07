@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Layer, Path } from "effect";
+import { Effect, FileSystem, Layer, Path } from "effect";
 import { TestConsole } from "effect/testing";
 
 import { run } from "./cli.ts";
@@ -18,6 +18,8 @@ import {
 } from "./testUtils.ts";
 
 isolateGitConfig();
+// `check --sync` deliberately does nothing in CI.
+delete process.env.CI;
 
 const TestLayer = Layer.merge(NodeServices.layer, TestConsole.layer);
 
@@ -71,7 +73,7 @@ describe("vendor-src CLI", () => {
 			assert.include(yield* readFile(project, ".oxfmtrc.json"), '".repos/"');
 			assert.include(
 				yield* readFile(project, "package.json"),
-				'"postinstall": "vendor-src sync"',
+				'"postinstall": "vendor-src check --sync"',
 			);
 			assert.include(
 				yield* readFile(project, ".repos", "AGENTS.md"),
@@ -219,7 +221,7 @@ describe("vendor-src CLI", () => {
 			}).pipe(Effect.provide(TestLayer)),
 	);
 
-	it.live("syncs mid-install, committing only the vendored checkout", () =>
+	it.live("check --sync syncs mid-install, committing only the checkout", () =>
 		Effect.gen(function* () {
 			const path = yield* Path.Path;
 			const root = yield* tempDir;
@@ -246,13 +248,21 @@ describe("vendor-src CLI", () => {
 			git(project, "add", "-A");
 			git(project, "commit", "-qm", "vendor lib");
 
+			// Nothing drifted: no git, no writes, no output.
+			const head = git(project, "rev-parse", "HEAD");
+			const logged = (yield* TestConsole.logLines).length;
+			yield* vendorSrc(project, "check", "--sync");
+			assert.strictEqual(git(project, "rev-parse", "HEAD"), head);
+			assert.strictEqual(git(project, "status", "--porcelain"), "");
+			assert.strictEqual((yield* TestConsole.logLines).length, logged);
+
 			// What `pnpm up lib` leaves behind when postinstall runs.
 			yield* installPackage(project, "lib", "1.1.0", upstream);
 			yield* writeFiles(project, { "pnpm-lock.yaml": "lib: 1.1.0\n" });
 			git(project, "add", "pnpm-lock.yaml");
 			yield* writeFiles(project, { "wip.ts": "export {}\n" });
 
-			yield* vendorSrc(project, "sync");
+			yield* vendorSrc(project, "check", "--sync", "--strict");
 			assert.strictEqual(
 				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
 				"export const v = 2\n",
@@ -269,21 +279,67 @@ describe("vendor-src CLI", () => {
 			assert.include(status, "A  pnpm-lock.yaml");
 			assert.include(status, "?? wip.ts");
 			assert.include(status, " M vendor-src.json");
+		}).pipe(Effect.provide(TestLayer)),
+	);
 
-			yield* writeFiles(project, {
-				".repos/lib/src/index.ts": "local edit\n",
-			});
+	it.live("check --sync falls back to a warning when it cannot sync", () =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "src/index.ts": "export const v = 1\n" } },
+				{ version: "1.1.0", files: { "src/index.ts": "export const v = 2\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
 			yield* installPackage(project, "lib", "1.0.0", upstream);
-			const dirty = yield* vendorSrc(project, "sync").pipe(Effect.flip);
-			assert.strictEqual(dirty._tag, "UserError");
+			yield* initAndCommit(project);
+			yield* vendorSrc(project, "add", "lib");
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor lib");
+			yield* installPackage(project, "lib", "1.1.0", upstream);
+			const head = git(project, "rev-parse", "HEAD");
+			const drift = "lib is vendored at 1.0.0 but lib@1.1.0 is installed";
+
+			// Offline: the upstream is unreachable.
+			yield* fs.rename(upstream, `${upstream}.offline`);
+			yield* vendorSrc(project, "check", "--sync");
+			let output = yield* errorOutput;
+			assert.include(output, "vendor-src: could not sync lib: git ls-remote");
+			assert.include(output, drift);
 			assert.include(
-				yield* errorOutput,
-				"uncommitted changes in .repos/lib; commit, stash, or discard them first",
+				output,
+				"Run `vendor-src sync` to update vendored sources.",
+			);
+			const strict = yield* vendorSrc(
+				project,
+				"check",
+				"--sync",
+				"--strict",
+			).pipe(Effect.flip);
+			assert.strictEqual(strict._tag, "UserError");
+			yield* fs.rename(`${upstream}.offline`, upstream);
+
+			// Local edits in the checkout are never overwritten.
+			yield* writeFiles(project, { ".repos/lib/src/index.ts": "local edit\n" });
+			yield* vendorSrc(project, "check", "--sync");
+			output = yield* errorOutput;
+			assert.include(
+				output,
+				"could not sync lib: uncommitted changes in .repos/lib; commit, stash, or discard them first",
 			);
 			assert.strictEqual(
 				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
 				"local edit\n",
 			);
+			git(project, "checkout", "--", ".repos");
+
+			process.env.CI = "true";
+			yield* vendorSrc(project, "check", "--sync").pipe(
+				Effect.ensuring(Effect.sync(() => delete process.env.CI)),
+			);
+			assert.include(yield* errorOutput, "not syncing in CI");
+			assert.strictEqual(git(project, "rev-parse", "HEAD"), head);
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
@@ -466,7 +522,7 @@ describe("vendor-src init", () => {
 			);
 			assert.include(
 				yield* readFile(project, "package.json"),
-				'"postinstall": "vendor-src sync"',
+				'"postinstall": "vendor-src check --sync"',
 			);
 			const first = yield* logOutput;
 			assert.include(first, "Created vendor-src.json");
@@ -499,7 +555,10 @@ describe("vendor-src init", () => {
 				output,
 				"package.json already has a postinstall script; left it unchanged:",
 			);
-			assert.include(output, '"postinstall": "husky && vendor-src sync"');
+			assert.include(
+				output,
+				'"postinstall": "husky && vendor-src check --sync"',
+			);
 			assert.notInclude(yield* logOutput, "  package.json");
 		}).pipe(Effect.provide(TestLayer)),
 	);

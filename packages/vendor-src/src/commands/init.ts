@@ -134,7 +134,7 @@ export const initCommand = Command.make(
 	}, reportErrors),
 ).pipe(
 	Command.withDescription(
-		"Set up vendor-src: create vendor-src.json, AGENTS.md files, tooling ignores, and the postinstall sync (safe to re-run)",
+		"Set up vendor-src: create vendor-src.json, AGENTS.md files, tooling ignores, and the postinstall hook (safe to re-run)",
 	),
 	Command.withExamples([
 		{

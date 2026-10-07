@@ -65,8 +65,8 @@ const PackageJsonFields = Schema.Struct({
 	scripts: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 });
 
-const POSTINSTALL = "vendor-src sync";
-const CHECK_COMMAND = /vendor-src check(?: --strict)?/;
+const POSTINSTALL = "vendor-src check --sync";
+const CHECK_COMMAND = "vendor-src check";
 
 const CheckoutPackageJson = Schema.fromJsonString(
 	Schema.Struct({ version: Schema.optionalKey(Schema.String) }),
@@ -81,7 +81,7 @@ export type PostinstallResult =
 	| {
 			readonly _tag: "Occupied";
 			readonly existing: string;
-			/** The same script, extended to also run `vendor-src sync`. */
+			/** The same script, extended to also run `vendor-src check --sync`. */
 			readonly suggested: string;
 	  };
 
@@ -121,7 +121,7 @@ export class Project extends Context.Service<
 			path: string,
 		) => Effect.Effect<Option.Option<string>, PlatformError>;
 		/**
-		 * Make `vendor-src sync` the project's `postinstall` script, unless
+		 * Make `vendor-src check --sync` the project's `postinstall` script, unless
 		 * another `postinstall` already exists.
 		 */
 		readonly ensurePostinstall: Effect.Effect<
@@ -326,11 +326,11 @@ export class Project extends Context.Service<
 				return { _tag: "Ready", changed: [] } satisfies PostinstallResult;
 			}
 			// A bare `vendor-src check` is the hook vendor-src itself used to write.
-			if (current !== "" && current !== "vendor-src check") {
+			if (current !== "" && current !== CHECK_COMMAND) {
 				return {
 					_tag: "Occupied",
 					existing: current,
-					suggested: CHECK_COMMAND.test(current)
+					suggested: current.includes(CHECK_COMMAND)
 						? current.replace(CHECK_COMMAND, POSTINSTALL)
 						: `${current} && ${POSTINSTALL}`,
 				} satisfies PostinstallResult;
