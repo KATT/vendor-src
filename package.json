@@ -13,7 +13,7 @@
 		"test": "vp -C packages/vendor-src test",
 		"typecheck": "pnpm --filter vendor-src typecheck",
 		"check": "vp check",
-		"postinstall": "vendor-src check --sync"
+		"postinstall": "vendor-src check"
 	},
 	"devDependencies": {
 		"@release-it/conventional-changelog": "12.0.2",

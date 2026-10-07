@@ -107,7 +107,7 @@ export const initCommand = Command.make(
 				[
 					"vendor-src: package.json already has a postinstall script; left it unchanged:",
 					`  "postinstall": ${JSON.stringify(postinstall.existing)}`,
-					"To also sync vendored sources after every install, run both from it, e.g.:",
+					"To also check vendored sources after every install, run both from it, e.g.:",
 					`  "postinstall": ${JSON.stringify(postinstall.suggested)}`,
 				].join("\n"),
 			);
