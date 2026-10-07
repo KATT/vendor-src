@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.0](https://github.com/KATT/vendor-src/compare/0.13.0...0.14.0) (2026-10-07)
+
+### Features
+
+- postinstall runs check --sync (fast, offline, never fails the install) ([#38](https://github.com/KATT/vendor-src/issues/38)) ([0b06c5a](https://github.com/KATT/vendor-src/commit/0b06c5a872d92c53ad825881fed7d39a3bbd2f3e)), references [#37](https://github.com/KATT/vendor-src/issues/37)
+
 ## [0.13.0](https://github.com/KATT/vendor-src/compare/0.12.0...0.13.0) (2026-10-07)
 
 ### Features
