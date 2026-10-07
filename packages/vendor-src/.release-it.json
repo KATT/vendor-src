@@ -7,7 +7,7 @@
 	"github": { "release": true, "releaseName": "v${version}" },
 	"hooks": {
 		"before:npm": "pnpm --dir ../.. build && node scripts/sync-package-docs.ts",
-		"after:git:release": "npm publish"
+		"after:git:release": "pnpm pack --out vendor-src.tgz && npm publish vendor-src.tgz && rm vendor-src.tgz"
 	},
 	"npm": { "publish": false, "skipChecks": true },
 	"plugins": {

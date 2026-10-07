@@ -23,10 +23,9 @@
 		"url": "https://github.com/KATT/vendor-src/issues"
 	},
 	"bin": {
-		"vendor-src": "./bin/vendor-src.js"
+		"vendor-src": "./src/bin.ts"
 	},
 	"files": [
-		"bin/",
 		"dist/",
 		"schema/",
 		"LICENSE.md",
@@ -56,6 +55,11 @@
 		"@vitest/coverage-v8": "5.0.1",
 		"typescript": "7.0.2",
 		"vite-plus": "1.0.0"
+	},
+	"publishConfig": {
+		"bin": {
+			"vendor-src": "./dist/bin.mjs"
+		}
 	},
 	"engines": {
 		"node": ">=24"
