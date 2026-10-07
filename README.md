@@ -57,6 +57,7 @@ Set up vendor-src in this repo:
 ```shell
 # Vendor the source for an installed dependency at its matching git tag
 pnpm exec vendor-src add effect
+
 # Offline check after installs (exit 0 with a warning on drift)
 pnpm exec vendor-src check
 
