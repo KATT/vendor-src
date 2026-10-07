@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.0](https://github.com/KATT/vendor-src/compare/0.8.0...0.9.0) (2026-10-07)
+
+### Features
+
+- add init command; add no longer bootstraps the project ([#29](https://github.com/KATT/vendor-src/issues/29)) ([d6fed8b](https://github.com/KATT/vendor-src/commit/d6fed8b99c0c075cc7d867b3618092dc8a85a5dc))
+
 ## [0.8.0](https://github.com/KATT/vendor-src/compare/0.7.0...0.8.0) (2026-10-07)
 
 ### Features
