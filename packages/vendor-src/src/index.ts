@@ -47,6 +47,8 @@ export {
 	InstalledPackageJson,
 	InstalledPackages,
 	parsePnpmWorkspacePackages,
+	suggestPackages,
+	type DeclaredDependency,
 } from "./packages.ts";
 export {
 	ConfigFileError,
