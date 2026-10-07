@@ -5,7 +5,7 @@
 	"description": "Configuration for vendor-src: vendored dependency sources under a directory such as .repos/.",
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["dir", "repos"],
+	"required": ["dir", "rootAgentsMd", "repos"],
 	"properties": {
 		"$schema": {
 			"type": "string",
@@ -16,6 +16,11 @@
 			"description": "Directory that holds vendored repositories. vendor-src writes .repos when it creates this file; change it if you prefer another folder name. AGENTS.md and ignore tooling follow this setting.",
 			"examples": [".repos"],
 			"minLength": 1
+		},
+		"rootAgentsMd": {
+			"type": "boolean",
+			"description": "Whether vendor-src maintains a managed section in the project-root AGENTS.md. vendor-src writes true when it creates this file; set false to keep the root AGENTS.md untouched (an existing managed section is removed). {dir}/AGENTS.md is always written.",
+			"examples": [true]
 		},
 		"repos": {
 			"type": "object",

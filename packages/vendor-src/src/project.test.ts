@@ -125,6 +125,52 @@ describe("Project.writeAgentsMd", () => {
 			assert.include(agents, "## Vendored Source");
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
+
+	it.effect("leaves the root AGENTS.md alone when rootAgentsMd is false", () =>
+		Effect.gen(function* () {
+			const root = yield* makeProject(yield* tempDir);
+			yield* withProject(
+				root,
+				Project.use((project) =>
+					project.writeAgentsMd({ ...manifest, rootAgentsMd: false }),
+				),
+			);
+			assert.isFalse(yield* exists(root, "AGENTS.md"));
+			assert.include(
+				yield* readFile(root, ".repos", "AGENTS.md"),
+				"`effect@4.0.1`",
+			);
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+
+	it.effect(
+		"removes an existing managed block when rootAgentsMd is false",
+		() =>
+			Effect.gen(function* () {
+				const root = yield* makeProject(yield* tempDir, {
+					"AGENTS.md": "# Project\n\nHello.\n",
+				});
+				yield* withProject(
+					root,
+					Project.use((project) => project.writeAgentsMd(manifest)),
+				);
+				assert.include(
+					yield* readFile(root, "AGENTS.md"),
+					"<!-- vendor-src:start -->",
+				);
+
+				yield* withProject(
+					root,
+					Project.use((project) =>
+						project.writeAgentsMd({ ...manifest, rootAgentsMd: false }),
+					),
+				);
+				assert.strictEqual(
+					yield* readFile(root, "AGENTS.md"),
+					"# Project\n\nHello.\n",
+				);
+			}).pipe(Effect.provide(NodeServices.layer)),
+	);
 });
 
 describe("Project.writeEditorIgnores", () => {

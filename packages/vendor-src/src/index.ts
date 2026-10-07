@@ -1,6 +1,7 @@
 export {
 	AGENTS_END,
 	AGENTS_START,
+	removeAgentsBlock,
 	renderAgentsBlock,
 	renderVendorDirAgentsMd,
 	upsertAgentsBlock,

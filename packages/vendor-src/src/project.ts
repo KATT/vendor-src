@@ -10,6 +10,7 @@ import {
 import type { PlatformError } from "effect/PlatformError";
 
 import {
+	removeAgentsBlock,
 	renderVendorDirAgentsMd,
 	upsertAgentsBlock,
 	type AgentsRepoLine,
@@ -80,7 +81,10 @@ export class Project extends Context.Service<
 		readonly writeManifest: (
 			manifest: Manifest,
 		) => Effect.Effect<void, PlatformError>;
-		/** Refresh the managed block in `AGENTS.md` and the `{dir}/AGENTS.md` file. */
+		/**
+		 * Refresh the `{dir}/AGENTS.md` file, and the managed block in the root
+		 * `AGENTS.md` (or remove that block when `rootAgentsMd` is false).
+		 */
 		readonly writeAgentsMd: (
 			manifest: Manifest,
 		) => Effect.Effect<void, PlatformError>;
@@ -187,10 +191,17 @@ export class Project extends Context.Service<
 			// writeFileString follows AGENTS.md symlinks (e.g. → README.md)
 			const rootAgents = resolve("AGENTS.md");
 			const existing = yield* readOptional(rootAgents);
-			yield* fs.writeFileString(
-				rootAgents,
-				upsertAgentsBlock(Option.getOrUndefined(existing), repos, dir),
-			);
+			if (manifest.rootAgentsMd) {
+				yield* fs.writeFileString(
+					rootAgents,
+					upsertAgentsBlock(Option.getOrUndefined(existing), repos, dir),
+				);
+			} else if (Option.isSome(existing)) {
+				const stripped = removeAgentsBlock(existing.value);
+				if (stripped !== existing.value) {
+					yield* fs.writeFileString(rootAgents, stripped);
+				}
+			}
 
 			yield* fs.makeDirectory(resolve(dir), { recursive: true });
 			yield* fs.writeFileString(
