@@ -481,3 +481,215 @@ describe("vendor-src init", () => {
 		}).pipe(Effect.provide(TestLayer)),
 	);
 });
+
+describe("vendor-src with monorepo packages", () => {
+	it.live("shares one checkout per repo between packages", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "mono", [
+				{
+					version: "1.0.0",
+					files: {
+						"packages/a/package.json":
+							'{ "name": "@scope/a", "version": "1.0.0" }\n',
+						"packages/b/package.json":
+							'{ "name": "@scope/b", "version": "2.0.0" }\n',
+					},
+				},
+			]);
+			// Monorepos tag each package separately on the release commit.
+			git(path.join(root, "mono-work"), "tag", "@scope/a@1.0.0");
+			git(path.join(root, "mono-work"), "tag", "@scope/b@2.0.0");
+			git(
+				upstream,
+				"fetch",
+				"-q",
+				"-f",
+				path.join(root, "mono-work"),
+				"refs/tags/*:refs/tags/*",
+			);
+
+			const project = yield* makeProject(path.join(root, "project"));
+			const repo = (directory: string) => ({
+				url: `git+${upstream}`,
+				directory,
+			});
+			yield* installPackage(project, "@scope/a", "1.0.0", repo("packages/a"));
+			yield* installPackage(
+				project,
+				"@scope/b",
+				"2.0.0",
+				repo("./packages/b/"),
+			);
+			yield* initAndCommit(project);
+
+			yield* vendorSrc(project, "add", "@scope/a");
+			assert.isTrue(yield* exists(project, ".repos", "mono", "packages", "b"));
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor a");
+			const commits = git(project, "rev-list", "--count", "HEAD");
+
+			yield* vendorSrc(project, "add", "@scope/b");
+			assert.strictEqual(git(project, "rev-list", "--count", "HEAD"), commits);
+			const output = yield* logOutput;
+			assert.include(output, "@scope/b comes from ");
+			assert.include(
+				output,
+				"already vendored at .repos/mono (pinned by @scope/a@1.0.0)",
+			);
+			assert.include(
+				output,
+				"Source: .repos/mono/packages/b (2.0.0, same as installed)",
+			);
+
+			const manifest = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.deepStrictEqual(Object.keys(manifest.repos), ["mono"]);
+			assert.deepStrictEqual(manifest.repos.mono?.directory, "packages/a");
+			assert.deepStrictEqual(manifest.repos.mono?.siblings, [
+				{ package: "@scope/b", directory: "packages/b" },
+			]);
+			const agents = yield* readFile(project, "AGENTS.md");
+			assert.include(agents, "- `@scope/a@1.0.0` → `.repos/mono/packages/a`");
+			assert.include(
+				agents,
+				"- `@scope/b@2.0.0` → `.repos/mono/packages/b` (same checkout, pinned to `@scope/a@1.0.0`)",
+			);
+			const vendorAgents = yield* readFile(project, ".repos", "AGENTS.md");
+			assert.include(vendorAgents, "- `mono/` — pinned to `@scope/a@1.0.0`");
+			assert.include(vendorAgents, "  - `@scope/b@2.0.0` → `packages/b/`");
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "track b");
+
+			yield* vendorSrc(project, "list");
+			assert.include(yield* logOutput, "  + @scope/b@2.0.0\tvia @scope/a\tok");
+
+			const again = yield* vendorSrc(project, "add", "@scope/b").pipe(
+				Effect.flip,
+			);
+			assert.strictEqual(again._tag, "UserError");
+			const pinRef = yield* vendorSrc(
+				project,
+				"add",
+				"@scope/a",
+				"--ref",
+				"x",
+			).pipe(Effect.flip);
+			assert.strictEqual(pinRef._tag, "UserError");
+			const removePin = yield* vendorSrc(project, "remove", "@scope/a").pipe(
+				Effect.flip,
+			);
+			assert.strictEqual(removePin._tag, "UserError");
+			const errors = yield* errorOutput;
+			assert.include(
+				errors,
+				"@scope/b is already vendored in .repos/mono (pinned by @scope/a@1.0.0)",
+			);
+			assert.include(errors, "@scope/a is already vendored at .repos/mono");
+			assert.include(
+				errors,
+				"Remove the whole checkout with: vendor-src remove mono",
+			);
+
+			yield* vendorSrc(project, "remove", "@scope/b");
+			assert.isTrue(yield* exists(project, ".repos", "mono"));
+			const dropped = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.isUndefined(dropped.repos.mono?.siblings);
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "drop b");
+
+			yield* vendorSrc(project, "remove", "@scope/a");
+			assert.isFalse(yield* exists(project, ".repos", "mono"));
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("sync records package directories missing from older entries", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "packages/lib/index.ts": "export {}\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* installPackage(project, "lib", "1.0.0", upstream);
+			yield* initAndCommit(project);
+			yield* vendorSrc(project, "add", "lib");
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor lib");
+			const before = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.isUndefined(before.repos.lib?.directory);
+
+			yield* installPackage(project, "lib", "1.0.0", {
+				url: upstream,
+				directory: "packages/lib",
+			});
+			yield* vendorSrc(project, "sync");
+			const after = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.strictEqual(after.repos.lib?.directory, "packages/lib");
+			assert.include(
+				yield* readFile(project, "AGENTS.md"),
+				"- `lib@1.0.0` → `.repos/lib/packages/lib`",
+			);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("refuses a second checkout of the same repo and a taken name", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "mono", [
+				{ version: "1.0.0", files: { "packages/a/index.ts": "export {}\n" } },
+			]);
+			const other = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "index.ts": "export {}\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* installPackage(project, "a", "1.0.0", {
+				url: upstream,
+				directory: "packages/a",
+			});
+			yield* installPackage(project, "b", "1.0.0", {
+				url: upstream,
+				directory: "packages/b",
+			});
+			yield* installPackage(project, "mono", "1.0.0", other);
+			yield* initAndCommit(project);
+			git(path.join(root, "mono-work"), "tag", "a@1.0.0");
+			git(
+				upstream,
+				"fetch",
+				"-q",
+				"-f",
+				path.join(root, "mono-work"),
+				"refs/tags/*:refs/tags/*",
+			);
+
+			yield* vendorSrc(project, "add", "a");
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor a");
+
+			const second = yield* vendorSrc(project, "add", "b", "--name", "b").pipe(
+				Effect.flip,
+			);
+			assert.strictEqual(second._tag, "UserError");
+			const taken = yield* vendorSrc(project, "add", "mono").pipe(Effect.flip);
+			assert.strictEqual(taken._tag, "UserError");
+			const errors = yield* errorOutput;
+			assert.include(errors, "--name b would check out");
+			assert.include(
+				errors,
+				"a second time; it is already vendored at .repos/mono",
+			);
+			assert.include(errors, ".repos/mono is already used for");
+			assert.include(errors, "pass --name <dir>");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+});

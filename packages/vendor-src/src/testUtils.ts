@@ -116,7 +116,7 @@ export const installPackage = (
 	dir: string,
 	name: string,
 	version: string,
-	repository?: string,
+	repository?: string | { readonly url: string; readonly directory?: string },
 ) =>
 	writeFiles(dir, {
 		[`node_modules/${name}/package.json`]: JSON.stringify({

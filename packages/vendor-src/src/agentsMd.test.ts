@@ -72,6 +72,55 @@ describe(renderVendorDirAgentsMd, () => {
 	});
 });
 
+describe("monorepo checkouts", () => {
+	const router = {
+		name: "router",
+		package: "@tanstack/react-start",
+		path: ".repos/router",
+		version: "1.168.60",
+		ref: "@tanstack/react-start@1.168.60",
+		directory: "packages/react-start",
+	};
+
+	it("points a single package at its directory", () => {
+		expect(renderAgentsBlock([router], ".repos")).toContain(
+			"- `@tanstack/react-start@1.168.60` → `.repos/router/packages/react-start`",
+		);
+		const md = renderVendorDirAgentsMd([router], ".repos");
+		expect(md).toContain(
+			"- `router/` — `@tanstack/react-start@1.168.60` — source in `packages/react-start/`",
+		);
+		expect(md).not.toContain("share one checkout");
+	});
+
+	it("lists siblings under the pinned checkout", () => {
+		const withSibling = {
+			...router,
+			siblings: [
+				{
+					package: "@tanstack/react-router",
+					directory: "packages/react-router",
+					version: "1.170.41",
+				},
+			],
+		};
+		expect(renderAgentsBlock([withSibling], ".repos")).toContain(
+			"- `@tanstack/react-router@1.170.41` → `.repos/router/packages/react-router` (same checkout, pinned to `@tanstack/react-start@1.168.60`)",
+		);
+		const md = renderVendorDirAgentsMd([withSibling], ".repos");
+		expect(md).toContain(
+			"- `router/` — pinned to `@tanstack/react-start@1.168.60`",
+		);
+		expect(md).toContain(
+			"  - `@tanstack/react-start@1.168.60` → `packages/react-start/`",
+		);
+		expect(md).toContain(
+			"  - `@tanstack/react-router@1.170.41` → `packages/react-router/`",
+		);
+		expect(md).toContain("share one checkout");
+	});
+});
+
 describe(upsertAgentsBlock, () => {
 	it("creates a file when none exists", () => {
 		const result = upsertAgentsBlock(

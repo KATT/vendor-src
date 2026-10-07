@@ -8,11 +8,14 @@ import {
 	emptyManifest,
 	encodeManifest,
 	findDrift,
+	findRepoByUrl,
+	findVendoredPackage,
 	Manifest,
 	MANIFEST_SCHEMA_URL,
 	removeRepo,
 	repoPrefix,
 	setRepo,
+	SiblingPackage,
 	VendoredRepo,
 	type VendoredRepo as VendoredRepoType,
 } from "./manifest.ts";
@@ -121,6 +124,41 @@ describe("setRepo / removeRepo", () => {
 	});
 });
 
+describe("findRepoByUrl / findVendoredPackage", () => {
+	const manifest = setRepo(emptyManifest, "effect", {
+		...effect,
+		directory: "packages/effect",
+		siblings: [{ package: "@effect/platform", directory: "packages/platform" }],
+	});
+
+	it("matches repo URLs case-insensitively and with or without .git", () => {
+		assert.strictEqual(
+			findRepoByUrl(manifest, "https://github.com/effect-ts/EFFECT")?.[0],
+			"effect",
+		);
+		assert.isUndefined(
+			findRepoByUrl(manifest, "https://github.com/org/other.git"),
+		);
+	});
+
+	it("finds pins and siblings by package name", () => {
+		assert.strictEqual(findVendoredPackage(manifest, "effect")?.role, "pin");
+		assert.strictEqual(
+			findVendoredPackage(manifest, "@effect/platform")?.role,
+			"sibling",
+		);
+		assert.isUndefined(findVendoredPackage(manifest, "zod"));
+	});
+
+	it("omits empty siblings", () => {
+		const cleared = setRepo(manifest, "effect", {
+			...manifest.repos.effect!,
+			siblings: [],
+		});
+		assert.notProperty(cleared.repos.effect, "siblings");
+	});
+});
+
 describe("findDrift", () => {
 	it("reports version mismatches and missing installs", () => {
 		const manifest = setRepo(
@@ -159,6 +197,10 @@ describe("published JSON schema", () => {
 		properties: Record<string, unknown>;
 		$defs: {
 			vendoredRepo: { required: string[]; properties: Record<string, unknown> };
+			siblingPackage: {
+				required: string[];
+				properties: Record<string, unknown>;
+			};
 		};
 	};
 
@@ -171,6 +213,13 @@ describe("published JSON schema", () => {
 			Object.keys(jsonSchema.$defs.vendoredRepo.properties).toSorted(),
 			Object.keys(VendoredRepo.fields).toSorted(),
 		);
+		assert.deepStrictEqual(
+			Object.keys(jsonSchema.$defs.siblingPackage.properties).toSorted(),
+			Object.keys(SiblingPackage.fields).toSorted(),
+		);
+		assert.deepStrictEqual(jsonSchema.$defs.siblingPackage.required, [
+			"package",
+		]);
 	});
 
 	it("requires dir, rootAgentsMd and repos at the top level", () => {

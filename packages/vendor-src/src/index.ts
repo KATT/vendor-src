@@ -30,6 +30,8 @@ export {
 	emptyManifest,
 	encodeManifest,
 	findDrift,
+	findRepoByUrl,
+	findVendoredPackage,
 	Manifest,
 	ManifestError,
 	ManifestJson,
@@ -39,9 +41,11 @@ export {
 	removeRepo,
 	repoPrefix,
 	setRepo,
+	SiblingPackage,
 	vendorDir,
 	VendoredRepo,
 	type Drift,
+	type VendoredPackage,
 } from "./manifest.ts";
 export {
 	InstalledPackageJson,
@@ -56,7 +60,14 @@ export {
 	ProjectNotFoundError,
 	type ChangedFiles,
 } from "./project.ts";
-export { defaultVendorName, normalizeRepositoryUrl } from "./repository.ts";
+export {
+	defaultCheckoutName,
+	defaultVendorName,
+	normalizeRepositoryUrl,
+	repositoryDirectory,
+	repositoryName,
+	repositorySlug,
+} from "./repository.ts";
 export { compareSemver, maxSemver, parseSemver } from "./semver.ts";
 export {
 	candidateTags,

@@ -12,6 +12,7 @@ import type { PlatformError } from "effect/PlatformError";
 import picomatch from "picomatch";
 
 import { Project } from "./project.ts";
+import { repositoryName } from "./repository.ts";
 import { maxSemver } from "./semver.ts";
 import { unscopedName } from "./tags.ts";
 
@@ -70,23 +71,6 @@ export interface DeclaredDependency {
 	/** Normalized git URL from the installed package.json, when known. */
 	readonly repository?: string;
 }
-
-/** Repository name from a git URL, e.g. `https://github.com/TanStack/router.git` -> `router`. */
-export const repositoryName = (url: string): string =>
-	url
-		.replace(/\.git$/, "")
-		.split(/[/:]/)
-		.filter(Boolean)
-		.pop() ?? url;
-
-/** Repository owner/name for display, e.g. `TanStack/router`. */
-export const repositorySlug = (url: string): string =>
-	url
-		.replace(/\.git$/, "")
-		.split(/[/:]/)
-		.filter(Boolean)
-		.slice(-2)
-		.join("/");
 
 function editDistance(left: string, right: string): number {
 	let previous = Array.from({ length: right.length + 1 }, (_, index) => index);

@@ -1,19 +1,37 @@
 export const AGENTS_START = "<!-- vendor-src:start -->";
 export const AGENTS_END = "<!-- vendor-src:end -->";
 
+export interface AgentsSiblingLine {
+	package: string;
+	/** Path inside the checkout, e.g. `packages/react-router`. */
+	directory?: string | undefined;
+	/** Version found in the checkout (not necessarily the installed one). */
+	version?: string | undefined;
+}
+
 export interface AgentsRepoLine {
 	name: string;
 	package: string;
 	path: string;
 	version?: string;
 	ref?: string;
+	/** Path of `package` inside the checkout, e.g. `packages/react-start`. */
+	directory?: string | undefined;
+	/** Other packages whose source lives in this checkout. */
+	siblings?: ReadonlyArray<AgentsSiblingLine>;
 }
+
+const joinPath = (root: string, directory: string | undefined) =>
+	directory === undefined ? root : `${root}/${directory}`;
 
 function normalizeDir(dir: string): string {
 	return dir.replace(/\/+$/, "");
 }
 
-function packageSpec(repo: AgentsRepoLine): string {
+function packageSpec(repo: {
+	readonly package: string;
+	readonly version?: string | undefined;
+}): string {
 	return repo.version ? `${repo.package}@${repo.version}` : repo.package;
 }
 
@@ -46,7 +64,14 @@ export function renderAgentsBlock(
 			"",
 		);
 		for (const repo of repos) {
-			lines.push(`- \`${packageSpec(repo)}\` → \`${repo.path}\``);
+			lines.push(
+				`- \`${packageSpec(repo)}\` → \`${joinPath(repo.path, repo.directory)}\``,
+			);
+			for (const sibling of repo.siblings ?? []) {
+				lines.push(
+					`- \`${packageSpec(sibling)}\` → \`${joinPath(repo.path, sibling.directory)}\` (same checkout, pinned to \`${packageSpec(repo)}\`)`,
+				);
+			}
 		}
 		lines.push("");
 	}
@@ -73,6 +98,11 @@ export function renderVendorDirAgentsMd(
 		"- Prefer a pattern you can point to in this tree over one you recall or infer",
 		"- Start from the package's own README, then its source and tests for intended usage",
 		"- If a version here disagrees with the installed package, run `vendor-src check` / `vendor-src sync` rather than reasoning from a stale tree",
+		...(repos.some((repo) => (repo.siblings ?? []).length > 0)
+			? [
+					"- Packages from the same monorepo share one checkout, pinned to one package's tag. The other packages' source is at the version listed below, which can differ slightly from the installed one",
+				]
+			: []),
 		"",
 		"## Don'ts",
 		"",
@@ -89,9 +119,25 @@ export function renderVendorDirAgentsMd(
 		lines.push("_None yet. Run `vendor-src add <package>`._");
 	} else {
 		for (const repo of repos) {
+			const siblings = repo.siblings ?? [];
+			if (siblings.length === 0) {
+				const source =
+					repo.directory === undefined
+						? ""
+						: ` — source in \`${repo.directory}/\``;
+				lines.push(
+					`- \`${repo.name}/\` — \`${packageSpec(repo)}\`${refSuffix(repo)}${source}`,
+				);
+				continue;
+			}
 			lines.push(
-				`- \`${repo.name}/\` — \`${packageSpec(repo)}\`${refSuffix(repo)}`,
+				`- \`${repo.name}/\` — pinned to \`${packageSpec(repo)}\`${refSuffix(repo)}`,
 			);
+			for (const line of [repo, ...siblings]) {
+				lines.push(
+					`  - \`${packageSpec(line)}\` → \`${line.directory === undefined ? "./" : `${line.directory}/`}\``,
+				);
+			}
 		}
 	}
 
