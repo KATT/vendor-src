@@ -17,7 +17,7 @@ import {
 isolateGitConfig();
 
 const manifest = setRepo(emptyManifest, "effect", {
-	package: "effect",
+	packages: ["effect"],
 	url: "https://github.com/Effect-TS/effect.git",
 	version: "4.0.1",
 	ref: "effect@4.0.1",

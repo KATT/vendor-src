@@ -1,7 +1,12 @@
 import { Effect, FileSystem, Option, Schema } from "effect";
 import { CliError, Flag } from "effect/cli";
 
-import { findVendoredPackage, repoPrefix, type Manifest } from "../manifest.ts";
+import {
+	findVendoredPackage,
+	pinnedPackage,
+	repoPrefix,
+	type Manifest,
+} from "../manifest.ts";
 import { InstalledPackages, suggestPackages } from "../packages.ts";
 import { Project } from "../project.ts";
 import {
@@ -110,7 +115,7 @@ export const resolveInstalledSource = Effect.fn("resolveInstalledSource")(
 	},
 );
 
-/** Fail when `packageName` is already vendored, as a pin or a sibling. */
+/** Fail when `packageName` is already vendored, pinning a checkout or sharing one. */
 export const ensurePackageNotVendored = Effect.fnUntraced(function* (
 	manifest: Manifest,
 	packageName: string,
@@ -124,7 +129,7 @@ export const ensurePackageNotVendored = Effect.fnUntraced(function* (
 		message:
 			found.role === "pin"
 				? `${packageName} is already vendored at ${prefix}; use vendor-src sync ${found.name}`
-				: `${packageName} is already vendored in ${prefix} (pinned by ${found.repo.package}@${found.repo.version})`,
+				: `${packageName} is already vendored in ${prefix} (pinned by ${pinnedPackage(found.repo)}@${found.repo.version})`,
 	});
 });
 

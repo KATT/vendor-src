@@ -1,7 +1,6 @@
 import { Console, Effect, Option } from "effect";
 import { Command } from "effect/cli";
 
-import { repoPrefix } from "../manifest.ts";
 import { InstalledPackages } from "../packages.ts";
 import { Project } from "../project.ts";
 import { reportErrors } from "./shared.ts";
@@ -20,34 +19,22 @@ export const listCommand = Command.make(
 		}
 
 		for (const [name, repo] of entries) {
-			const status = Option.match(yield* packages.version(repo.package), {
+			const [pin, ...shared] = repo.packages;
+			const status = Option.match(yield* packages.version(pin), {
 				onNone: () => "not installed",
 				onSome: (installed) =>
 					installed === repo.version ? "ok" : `drift (installed ${installed})`,
 			});
 			yield* Console.log(
-				`${name}\t${repo.package}@${repo.version}\t${repo.ref}\t${status}`,
+				`${name}\t${pin}@${repo.version}\t${repo.ref}\t${status}`,
 			);
 
-			for (const sibling of repo.siblings ?? []) {
-				const prefix = repoPrefix(manifest, name);
-				const inCheckout = yield* project.checkoutPackageVersion(
-					sibling.directory === undefined
-						? prefix
-						: `${prefix}/${sibling.directory}`,
-				);
-				const installed = yield* packages.version(sibling.package);
-				const checkout = Option.getOrElse(inCheckout, () => "?");
-				const siblingStatus = Option.match(installed, {
+			for (const packageName of shared) {
+				const installed = Option.match(yield* packages.version(packageName), {
 					onNone: () => "not installed",
-					onSome: (version) =>
-						Option.contains(inCheckout, version)
-							? "ok"
-							: `checkout differs (installed ${version})`,
+					onSome: (version) => `installed ${version}`,
 				});
-				yield* Console.log(
-					`  + ${sibling.package}@${checkout}\tvia ${repo.package}\t${siblingStatus}`,
-				);
+				yield* Console.log(`  + ${packageName}\t${installed}`);
 			}
 		}
 	}, reportErrors),

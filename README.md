@@ -141,7 +141,7 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 	"rootAgentsMd": true,
 	"repos": {
 		"effect": {
-			"package": "effect",
+			"packages": ["effect"],
 			"url": "https://github.com/Effect-TS/effect.git",
 			"version": "4.0.1",
 			"ref": "effect@4.0.1",
@@ -164,24 +164,21 @@ Ignore entries are **globs** (not regexes), matched against posix paths relative
 Many npm packages are published from the same git repo (every `@tanstack/react-*` package from [TanStack/router](https://github.com/TanStack/router), every `@effect/*` package from [Effect-TS/effect](https://github.com/Effect-TS/effect)). vendor-src keeps **one checkout per repo**:
 
 - The first package you `add` pins the checkout to its tag. When the package's `repository.directory` says it lives in a monorepo, the checkout is named after the repo (`.repos/router`), not the package.
-- Adding another package from the same repo doesn't clone again. It is recorded under `siblings` on that entry, and `add` prints where its source is and which version the checkout holds.
-- AGENTS.md points every package at its own folder, e.g. `@tanstack/react-router` → `.repos/router/packages/react-router`.
-- `check` and `sync` follow the pinning package. A sibling's source is whatever the pinned tag contains; `list` shows it next to the installed version.
-- `vendor-src remove <sibling-package>` stops tracking a sibling and keeps the checkout; `vendor-src remove <checkout>` removes the checkout and its siblings.
+- Adding another package from the same repo doesn't clone again; it is appended to that entry's `packages`. The first entry in `packages` pins `version` and `ref`, and `check` and `sync` follow it.
+- AGENTS.md maps each checkout to the packages it holds, e.g. `@tanstack/react-start@1.168.60`, `@tanstack/react-router` → `.repos/router`.
+- `vendor-src remove <package>` stops tracking a package that shares a checkout and keeps the checkout; `vendor-src remove <checkout>` removes the checkout.
 
 ```shell
 pnpm exec vendor-src add @tanstack/react-start    # checks out .repos/router at @tanstack/react-start@<installed>
-pnpm exec vendor-src add @tanstack/react-router   # recorded as a sibling; no second clone
+pnpm exec vendor-src add @tanstack/react-router   # added to .repos/router; no second clone
 ```
 
 ```json
 "router": {
-	"package": "@tanstack/react-start",
+	"packages": ["@tanstack/react-start", "@tanstack/react-router"],
 	"url": "https://github.com/TanStack/router.git",
 	"version": "1.168.60",
-	"ref": "@tanstack/react-start@1.168.60",
-	"directory": "packages/react-start",
-	"siblings": [{ "package": "@tanstack/react-router", "directory": "packages/react-router" }]
+	"ref": "@tanstack/react-start@1.168.60"
 }
 ```
 
@@ -198,7 +195,7 @@ pnpm exec vendor-src add @tanstack/react-router   # recorded as a sibling; no se
 	"rootAgentsMd": true,
 	"repos": {
 		"effect": {
-			"package": "effect",
+			"packages": ["effect"],
 			"url": "https://github.com/Effect-TS/effect.git",
 			"version": "4.0.1",
 			"ref": "effect@4.0.1"

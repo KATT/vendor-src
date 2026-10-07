@@ -8,24 +8,15 @@ export const MANIFEST_SCHEMA_URL = "https://unpkg.com/vendor-src/schema.json";
 /** Vendor dir written into a freshly bootstrapped vendor-src.json. */
 export const DEFAULT_DIR = ".repos";
 
-/** Another npm package whose source lives in the same checkout. */
-export const SiblingPackage = Schema.Struct({
-	package: Schema.NonEmptyString,
-	/** Path of the package inside the repo, from its `repository.directory`. */
-	directory: Schema.optionalKey(Schema.NonEmptyString),
-});
-export type SiblingPackage = typeof SiblingPackage.Type;
-
 export const VendoredRepo = Schema.Struct({
-	/** npm package whose installed version pins the checkout's tag. */
-	package: Schema.NonEmptyString,
+	/**
+	 * npm packages whose source lives in this checkout. The first one's
+	 * installed version pins `version` and `ref`.
+	 */
+	packages: Schema.NonEmptyArray(Schema.NonEmptyString),
 	url: Schema.NonEmptyString,
 	version: Schema.NonEmptyString,
 	ref: Schema.NonEmptyString,
-	/** Path of `package` inside the repo, from its `repository.directory`. */
-	directory: Schema.optionalKey(Schema.NonEmptyString),
-	/** Other installed packages published from the same repo. */
-	siblings: Schema.optionalKey(Schema.Array(SiblingPackage)),
 	/** Path globs to prune from this vendored repo after add and sync. */
 	ignore: Schema.optionalKey(Schema.Array(Schema.String)),
 });
@@ -98,14 +89,13 @@ export const repoPrefix = (manifest: Manifest, name: string): string =>
 export const setRepo = (
 	manifest: Manifest,
 	name: string,
-	{ ignore, siblings, ...repo }: VendoredRepo,
+	{ ignore, ...repo }: VendoredRepo,
 ): Manifest => ({
 	...manifest,
 	repos: {
 		...manifest.repos,
 		[name]: {
 			...repo,
-			...(siblings && siblings.length > 0 ? { siblings } : {}),
 			...(ignore && ignore.length > 0 ? { ignore } : {}),
 		},
 	},
@@ -132,21 +122,22 @@ export interface VendoredPackage {
 	/** Checkout name under the vendor dir. */
 	readonly name: string;
 	readonly repo: VendoredRepo;
-	/** Whether this package pins the checkout or rides along as a sibling. */
-	readonly role: "pin" | "sibling";
+	/** Whether this package pins the checkout or shares one pinned by another. */
+	readonly role: "pin" | "shared";
 }
 
-/** Where `packageName` is vendored, as the pinning package or a sibling. */
+/** The package whose installed version pins the checkout. */
+export const pinnedPackage = (repo: VendoredRepo): string => repo.packages[0];
+
+/** Where `packageName` is vendored, as the pinning package or one sharing the checkout. */
 export const findVendoredPackage = (
 	manifest: Manifest,
 	packageName: string,
 ): VendoredPackage | undefined => {
 	for (const [name, repo] of Object.entries(manifest.repos)) {
-		if (repo.package === packageName) {
-			return { name, repo, role: "pin" };
-		}
-		if (repo.siblings?.some((sibling) => sibling.package === packageName)) {
-			return { name, repo, role: "sibling" };
+		const index = repo.packages.indexOf(packageName);
+		if (index !== -1) {
+			return { name, repo, role: index === 0 ? "pin" : "shared" };
 		}
 	}
 	return undefined;
@@ -169,13 +160,13 @@ export function findDrift(
 	installed: ReadonlyMap<string, string>,
 ): Drift[] {
 	return Object.entries(manifest.repos).flatMap(([name, repo]) => {
-		const current = installed.get(repo.package);
+		const current = installed.get(pinnedPackage(repo));
 		return current === repo.version
 			? []
 			: [
 					{
 						name,
-						package: repo.package,
+						package: pinnedPackage(repo),
 						vendored: repo.version,
 						installed: current,
 					},
