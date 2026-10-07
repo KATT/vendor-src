@@ -269,16 +269,18 @@ describe("Project.ensurePostinstall", () => {
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 
-	it.effect("upgrades a bare vendor-src check hook to check --sync", () =>
+	it.effect("upgrades the bare hooks vendor-src used to write", () =>
 		Effect.gen(function* () {
-			const { result, written } = yield* ensureWith(
-				packageJson(`    "postinstall": "vendor-src check"`),
-			);
-			assert.strictEqual(result._tag, "Ready");
-			assert.strictEqual(
-				written,
-				packageJson(`    "postinstall": "vendor-src check --sync"`),
-			);
+			for (const hook of ["vendor-src check", "vendor-src sync"]) {
+				const { result, written } = yield* ensureWith(
+					packageJson(`    "postinstall": "${hook}"`),
+				);
+				assert.strictEqual(result._tag, "Ready");
+				assert.strictEqual(
+					written,
+					packageJson(`    "postinstall": "vendor-src check --sync"`),
+				);
+			}
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 
@@ -299,6 +301,7 @@ describe("Project.ensurePostinstall", () => {
 				["husky", "husky && vendor-src check --sync"],
 				["husky && vendor-src check", "husky && vendor-src check --sync"],
 				["vendor-src check --strict", "vendor-src check --sync --strict"],
+				["husky && vendor-src sync", "husky && vendor-src check --sync"],
 			] as const) {
 				const raw = packageJson(`    "postinstall": "${existing}"`);
 				const { result, written } = yield* ensureWith(raw);

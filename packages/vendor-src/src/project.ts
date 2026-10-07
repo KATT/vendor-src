@@ -66,7 +66,7 @@ const PackageJsonFields = Schema.Struct({
 });
 
 const POSTINSTALL = "vendor-src check --sync";
-const CHECK_COMMAND = "vendor-src check";
+const OWN_HOOKS = ["vendor-src check", "vendor-src sync"];
 
 const CheckoutPackageJson = Schema.fromJsonString(
 	Schema.Struct({ version: Schema.optionalKey(Schema.String) }),
@@ -325,14 +325,16 @@ export class Project extends Context.Service<
 			if (current.includes(POSTINSTALL)) {
 				return { _tag: "Ready", changed: [] } satisfies PostinstallResult;
 			}
-			// A bare `vendor-src check` is the hook vendor-src itself used to write.
-			if (current !== "" && current !== CHECK_COMMAND) {
+			// Bare `vendor-src check` / `vendor-src sync` are hooks vendor-src itself used to write.
+			if (current !== "" && !OWN_HOOKS.includes(current)) {
+				const own = OWN_HOOKS.find((hook) => current.includes(hook));
 				return {
 					_tag: "Occupied",
 					existing: current,
-					suggested: current.includes(CHECK_COMMAND)
-						? current.replace(CHECK_COMMAND, POSTINSTALL)
-						: `${current} && ${POSTINSTALL}`,
+					suggested:
+						own === undefined
+							? `${current} && ${POSTINSTALL}`
+							: current.replace(own, POSTINSTALL),
 				} satisfies PostinstallResult;
 			}
 			const updated = {
