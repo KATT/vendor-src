@@ -126,16 +126,15 @@ export const initCommand = Command.make(
 			);
 		}
 
-		const hasRepos = Object.keys(manifest.repos).length > 0;
 		const steps = [
-			...(changed.length > 0 ? ["Review and commit the files above."] : []),
-			...(hasRepos
-				? []
-				: ["Run `vendor-src add <package>` for each key dependency."]),
 			...toolingSteps(vendorDir(manifest)),
+			"Commit, so `vendor-src add` starts from a clean working tree.",
 		];
 		yield* Console.log(
-			["Next steps:", ...steps.map((step) => `  - ${step}`)].join("\n"),
+			[
+				"Next steps:",
+				...steps.map((step, index) => `  ${index + 1}. ${step}`),
+			].join("\n"),
 		);
 	}, reportErrors),
 ).pipe(

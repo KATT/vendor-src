@@ -16,14 +16,18 @@ pnpm exec vendor-src init
 pnpm exec vendor-src add effect
 ```
 
-`init` writes `vendor-src.json`, the AGENTS.md files, and a `postinstall` hook, then prints what else to set up: keeping `.repos/` out of your formatter, linter, and editor. vendor-src doesn't touch those configs itself because it can't know which tools you use. `add` commits the checkout; commit the rest yourself.
+`init` writes `vendor-src.json`, the AGENTS.md files, and a `postinstall` hook, then prints what else to set up: keeping `.repos/` out of your formatter, linter, and editor. vendor-src doesn't touch those configs itself because it can't know which tools you use. Commit before `add`, which needs a clean working tree. `add` commits the checkout; commit the rest yourself.
 
 ## Quick start (copy/paste for agents)
 
 ```text
-Set up vendor-src in this repo: install it as a root devDependency, run
-`vendor-src init`, and follow the next steps it prints. Then run
-`vendor-src add <package>` for each key dependency and commit.
+Set up vendor-src in this repo:
+1. Install vendor-src as a root devDependency and run `vendor-src init`.
+2. Do the next steps it prints.
+3. Suggest a few dependencies worth vendoring: the frameworks and libraries
+   this code leans on most, especially new or fast-moving ones. Say why for
+   each, and ask me which to add.
+4. Run `vendor-src add <package>` for each one I pick, committing after each.
 ```
 
 ## Staying in sync
