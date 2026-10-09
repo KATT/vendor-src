@@ -4,7 +4,6 @@ import { Argument, Command, Flag } from "effect/cli";
 import { Git } from "../git.ts";
 import {
 	findRepoByUrl,
-	pinnedPackage,
 	repoPrefix,
 	setRepo,
 	tracksInstalled,
@@ -37,9 +36,13 @@ const isGitUrl = (target: string) =>
 
 const pinLabel = (
 	name: string,
-	repo: { packages: ReadonlyArray<string>; version: string; ref: string },
+	repo: {
+		readonly packages: ReadonlyArray<string>;
+		readonly version: string;
+		readonly ref: string;
+	},
 ) => {
-	const pin = pinnedPackage(repo);
+	const pin = repo.packages[0];
 	return pin !== undefined ? `${pin}@${repo.version}` : `${name} (${repo.ref})`;
 };
 
