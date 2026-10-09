@@ -162,12 +162,23 @@ describe("findRepoByUrl / findVendoredPackage", () => {
 		assert.isUndefined(findVendoredPackage(manifest, "zod"));
 	});
 
-	it("rejects an empty package list", () => {
-		assert.isFalse(Schema.is(VendoredRepo)({ ...effect, packages: [] }));
+	it("allows an empty package list for git-only checkouts", () => {
+		assert.isTrue(Schema.is(VendoredRepo)({ ...effect, packages: [] }));
 	});
 });
 
 describe("findDrift", () => {
+	it("skips git-only checkouts with an empty package list", () => {
+		const manifest = setRepo(emptyManifest, "orpc", {
+			...effect,
+			packages: [],
+			url: "https://github.com/middleapi/orpc.git",
+			version: "v1.15.5",
+			ref: "v1.15.5",
+		});
+		assert.deepStrictEqual(findDrift(manifest, new Map()), []);
+	});
+
 	it("reports version mismatches and missing installs", () => {
 		const manifest = setRepo(
 			setRepo(emptyManifest, "effect", { ...effect, version: "4.0.0" }),

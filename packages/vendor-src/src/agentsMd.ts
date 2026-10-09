@@ -21,12 +21,19 @@ function pinnedSpec(repo: AgentsRepoLine): string {
 
 /** `` `a@1.0.0`, `b` `` — the pinning package with its version, then the rest. */
 function packageList(repo: AgentsRepoLine): string {
+	if (repo.packages.length === 0) {
+		const label = `\`${repo.name}\``;
+		return repo.ref ? `${label} (ref \`${repo.ref}\`)` : label;
+	}
 	return [pinnedSpec(repo), ...repo.packages.slice(1)]
 		.map((spec) => `\`${spec}\``)
 		.join(", ");
 }
 
 function refSuffix(repo: AgentsRepoLine): string {
+	if (repo.packages.length === 0) {
+		return "";
+	}
 	return repo.ref && repo.ref !== pinnedSpec(repo)
 		? ` (ref \`${repo.ref}\`)`
 		: "";

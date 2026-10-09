@@ -39,6 +39,13 @@ export const syncRepos = Effect.fn("syncRepos")(function* (
 	for (const name of selected) {
 		const entry = manifest.repos[name]!;
 		const pin = pinnedPackage(entry);
+		if (pin === undefined) {
+			yield* Console.log(
+				`Skipping ${name}: git-only checkout (pinned to ${entry.ref}; not tied to an npm install)`,
+			);
+			yield* pruneIgnoredPaths(manifest, name);
+			continue;
+		}
 		const installed = yield* packages.version(pin);
 		if (Option.isNone(installed)) {
 			yield* Console.error(`Skipping ${name}: ${pin} is not installed`);

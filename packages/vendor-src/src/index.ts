@@ -28,6 +28,7 @@ export {
 	findRepoByUrl,
 	findVendoredPackage,
 	pinnedPackage,
+	tracksInstalled,
 	Manifest,
 	ManifestError,
 	ManifestJson,

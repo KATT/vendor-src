@@ -11,9 +11,10 @@ export const DEFAULT_DIR = ".repos";
 export const VendoredRepo = Schema.Struct({
 	/**
 	 * npm packages whose source lives in this checkout. The first one's
-	 * installed version pins `version` and `ref`.
+	 * installed version pins `version` and `ref`. Empty when this is a
+	 * git-only checkout (vendored by URL + ref, not tied to an install).
 	 */
-	packages: Schema.NonEmptyArray(Schema.NonEmptyString),
+	packages: Schema.Array(Schema.NonEmptyString),
 	url: Schema.NonEmptyString,
 	version: Schema.NonEmptyString,
 	ref: Schema.NonEmptyString,
@@ -21,6 +22,10 @@ export const VendoredRepo = Schema.Struct({
 	ignore: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 export type VendoredRepo = typeof VendoredRepo.Type;
+
+/** Whether this checkout is pinned to an installed npm package. */
+export const tracksInstalled = (repo: VendoredRepo): boolean =>
+	repo.packages.length > 0;
 
 export const Manifest = Schema.Struct({
 	$schema: Schema.String.pipe(
@@ -126,8 +131,12 @@ export interface VendoredPackage {
 	readonly role: "pin" | "shared";
 }
 
-/** The package whose installed version pins the checkout. */
-export const pinnedPackage = (repo: VendoredRepo): string => repo.packages[0];
+/**
+ * The package whose installed version pins the checkout.
+ * Undefined for git-only checkouts (`packages` is empty).
+ */
+export const pinnedPackage = (repo: VendoredRepo): string | undefined =>
+	repo.packages[0];
 
 /** Where `packageName` is vendored, as the pinning package or one sharing the checkout. */
 export const findVendoredPackage = (
@@ -160,13 +169,17 @@ export function findDrift(
 	installed: ReadonlyMap<string, string>,
 ): Drift[] {
 	return Object.entries(manifest.repos).flatMap(([name, repo]) => {
-		const current = installed.get(pinnedPackage(repo));
+		const pin = pinnedPackage(repo);
+		if (pin === undefined) {
+			return [];
+		}
+		const current = installed.get(pin);
 		return current === repo.version
 			? []
 			: [
 					{
 						name,
-						package: pinnedPackage(repo),
+						package: pin,
 						vendored: repo.version,
 						installed: current,
 					},
