@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.5](https://github.com/KATT/vendor-src/compare/0.15.4...0.15.5) (2026-10-09)
+
+### Bug Fixes
+
+- write a local $schema path into vendor-src.json ([#51](https://github.com/KATT/vendor-src/issues/51)) ([86651a5](https://github.com/KATT/vendor-src/commit/86651a562a5395152ebc5976a36fe061ea276789))
+
 ## [0.15.4](https://github.com/KATT/vendor-src/compare/0.15.3...0.15.4) (2026-10-09)
 
 ### Bug Fixes
