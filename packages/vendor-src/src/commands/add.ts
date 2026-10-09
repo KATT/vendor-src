@@ -88,10 +88,13 @@ export const addCommand = Command.make(
 								.pop() || "repo",
 						),
 					);
-					// When --name is an installed package, pin its installed version so
-					// `check` and `sync` track it like any other package. Otherwise this
-					// is a git-only checkout (reference source, not tied to an install).
-					const installed = yield* packages.version(packageName);
+					// Only an explicit --name that matches an installed package tracks
+					// that install. A bare git URL is always git-only (empty packages,
+					// version = ref) so a workspace dep with the same name cannot pin
+					// a different version than the ref you asked for.
+					const installed = Option.isSome(name)
+						? yield* packages.version(name.value)
+						: Option.none();
 					return {
 						packageName,
 						url: normalizeRepositoryUrl(target) ?? target,

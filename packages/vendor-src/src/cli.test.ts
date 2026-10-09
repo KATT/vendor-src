@@ -485,6 +485,39 @@ describe("vendor-src CLI", () => {
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
+	it.live(
+		"keeps a bare git URL git-only even when a same-named package is installed",
+		() =>
+			Effect.gen(function* () {
+				const path = yield* Path.Path;
+				const root = yield* tempDir;
+				const upstream = yield* makeUpstream(root, "effect", [
+					{
+						version: "4.0.2",
+						files: { "src/index.ts": "export const v = 4\n" },
+					},
+				]);
+				const project = yield* makeProject(path.join(root, "project"));
+				yield* installPackage(project, "effect", "3.22.2");
+				yield* initAndCommit(project);
+
+				yield* vendorSrc(project, "add", upstream, "--ref", "effect@4.0.2");
+				const manifest = yield* decodeManifest(
+					yield* readFile(project, "vendor-src.json"),
+				);
+				assert.deepStrictEqual(manifest.repos.effect?.packages, []);
+				assert.strictEqual(manifest.repos.effect?.version, "effect@4.0.2");
+				assert.strictEqual(manifest.repos.effect?.ref, "effect@4.0.2");
+				assert.strictEqual(
+					yield* readFile(project, ".repos", "effect", "src", "index.ts"),
+					"export const v = 4\n",
+				);
+				git(project, "add", "-A");
+				git(project, "commit", "-qm", "vendor effect");
+				yield* vendorSrc(project, "check", "--strict");
+			}).pipe(Effect.provide(TestLayer)),
+	);
+
 	it.live("renders user errors without a stack trace", () =>
 		Effect.gen(function* () {
 			const project = yield* makeProject(yield* tempDir);
