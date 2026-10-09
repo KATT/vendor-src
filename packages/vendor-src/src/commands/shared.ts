@@ -46,6 +46,11 @@ export interface InstalledSource {
 	readonly url: string;
 	/** Path of the package inside its repo (monorepos), from `repository.directory`. */
 	readonly directory?: string | undefined;
+	/**
+	 * False for git-only checkouts (URL + ref, no npm package to track).
+	 * Defaults to true for installed packages.
+	 */
+	readonly tracked?: boolean;
 }
 
 /** Resolve the git URL and pinned version for an installed npm package. */
@@ -125,11 +130,12 @@ export const ensurePackageNotVendored = Effect.fnUntraced(function* (
 		return;
 	}
 	const prefix = repoPrefix(manifest, found.name);
+	const pin = pinnedPackage(found.repo);
 	return yield* new CommandError({
 		message:
 			found.role === "pin"
 				? `${packageName} is already vendored at ${prefix}; use vendor-src sync ${found.name}`
-				: `${packageName} is already vendored in ${prefix} (pinned by ${pinnedPackage(found.repo)}@${found.repo.version})`,
+				: `${packageName} is already vendored in ${prefix} (pinned by ${pin}@${found.repo.version})`,
 	});
 });
 

@@ -20,6 +20,10 @@ export const listCommand = Command.make(
 
 		for (const [name, repo] of entries) {
 			const [pin, ...shared] = repo.packages;
+			if (pin === undefined) {
+				yield* Console.log(`${name}\t(git-only)\t${repo.ref}\tok`);
+				continue;
+			}
 			const status = Option.match(yield* packages.version(pin), {
 				onNone: () => "not installed",
 				onSome: (installed) =>

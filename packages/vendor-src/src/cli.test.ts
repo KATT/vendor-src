@@ -450,6 +450,41 @@ describe("vendor-src CLI", () => {
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
+	it.live("vendors a git URL without an installed package as git-only", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "orpc", [
+				{ version: "1.0.0", files: { "src/index.ts": "export const v = 1\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* initAndCommit(project);
+
+			yield* vendorSrc(project, "add", upstream, "--ref", "orpc@1.0.0");
+			assert.isTrue(
+				yield* exists(project, ".repos", "orpc", "src", "index.ts"),
+			);
+			const manifest = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.deepStrictEqual(manifest.repos.orpc?.packages, []);
+			assert.strictEqual(manifest.repos.orpc?.ref, "orpc@1.0.0");
+			assert.strictEqual(manifest.repos.orpc?.version, "orpc@1.0.0");
+			assert.include(
+				yield* readFile(project, "AGENTS.md"),
+				"- `orpc` (ref `orpc@1.0.0`) → `.repos/orpc`",
+			);
+
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor orpc");
+			yield* vendorSrc(project, "check", "--strict");
+			yield* vendorSrc(project, "list");
+			assert.include(yield* logOutput, "orpc\t(git-only)\torpc@1.0.0\tok");
+			yield* vendorSrc(project, "sync");
+			assert.include(yield* logOutput, "git-only checkout");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
 	it.live("renders user errors without a stack trace", () =>
 		Effect.gen(function* () {
 			const project = yield* makeProject(yield* tempDir);

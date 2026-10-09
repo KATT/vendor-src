@@ -38,12 +38,11 @@
 			"properties": {
 				"packages": {
 					"type": "array",
-					"description": "npm packages whose source lives in this checkout. The first one's installed version pins version and ref; the rest come from the same repo and share the checkout.",
+					"description": "npm packages whose source lives in this checkout. The first one's installed version pins version and ref; the rest come from the same repo and share the checkout. Empty for a git-only checkout vendored by URL + ref with no installed package to track.",
 					"items": {
 						"type": "string",
 						"minLength": 1
 					},
-					"minItems": 1,
 					"uniqueItems": true
 				},
 				"url": {
@@ -53,7 +52,7 @@
 				},
 				"version": {
 					"type": "string",
-					"description": "Installed package version this checkout is pinned to.",
+					"description": "Installed package version this checkout is pinned to, or the vendored ref for a git-only checkout.",
 					"minLength": 1
 				},
 				"ref": {

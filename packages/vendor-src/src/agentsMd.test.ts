@@ -47,6 +47,22 @@ describe(renderAgentsBlock, () => {
 		expect(block).toContain("Nothing is vendored yet");
 		expect(block).not.toContain("### Vendored packages");
 	});
+
+	it("lists git-only checkouts by name and ref", () => {
+		const block = renderAgentsBlock(
+			[
+				{
+					name: "orpc",
+					packages: [],
+					path: ".repos/orpc",
+					version: "v1.15.5",
+					ref: "v1.15.5",
+				},
+			],
+			".repos",
+		);
+		expect(block).toContain("- `orpc` (ref `v1.15.5`) → `.repos/orpc`");
+	});
 });
 
 describe(renderVendorDirAgentsMd, () => {

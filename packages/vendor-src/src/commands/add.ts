@@ -4,9 +4,9 @@ import { Argument, Command, Flag } from "effect/cli";
 import { Git } from "../git.ts";
 import {
 	findRepoByUrl,
-	pinnedPackage,
 	repoPrefix,
 	setRepo,
+	tracksInstalled,
 } from "../manifest.ts";
 import { InstalledPackages } from "../packages.ts";
 import { Project } from "../project.ts";
@@ -33,6 +33,18 @@ const isGitUrl = (target: string) =>
 	target.startsWith("https://") ||
 	target.startsWith("git@") ||
 	target.endsWith(".git");
+
+const pinLabel = (
+	name: string,
+	repo: {
+		readonly packages: ReadonlyArray<string>;
+		readonly version: string;
+		readonly ref: string;
+	},
+) => {
+	const pin = repo.packages[0];
+	return pin !== undefined ? `${pin}@${repo.version}` : `${name} (${repo.ref})`;
+};
 
 export const addCommand = Command.make(
 	"add",
@@ -77,23 +89,27 @@ export const addCommand = Command.make(
 						),
 					);
 					// When --name is an installed package, pin its installed version so
-					// `check` and `sync` track it like any other package.
+					// `check` and `sync` track it like any other package. Otherwise this
+					// is a git-only checkout (reference source, not tied to an install).
 					const installed = yield* packages.version(packageName);
 					return {
 						packageName,
 						url: normalizeRepositoryUrl(target) ?? target,
 						version: Option.getOrElse(installed, () => gitRef),
+						tracked: Option.isSome(installed),
 					};
 				})
 			: yield* resolveInstalledSource(target);
 
-		yield* ensurePackageNotVendored(manifest, source.packageName);
+		if (source.tracked !== false) {
+			yield* ensurePackageNotVendored(manifest, source.packageName);
+		}
 
 		const sameRepo = findRepoByUrl(manifest, source.url);
 		if (sameRepo !== undefined) {
 			const [existingName, existing] = sameRepo;
 			const existingPrefix = repoPrefix(manifest, existingName);
-			const pinned = `${pinnedPackage(existing)}@${existing.version}`;
+			const pinned = pinLabel(existingName, existing);
 			const conflict = fromGitUrl
 				? `${source.url} is already vendored at ${existingPrefix}`
 				: Option.isSome(name) && name.value !== existingName
@@ -105,11 +121,36 @@ export const addCommand = Command.make(
 				return yield* new CommandError({ message: conflict });
 			}
 
+			if (!tracksInstalled(existing)) {
+				// Promote a git-only checkout to track this installed package.
+				const updated = setRepo(manifest, existingName, {
+					...existing,
+					packages: [source.packageName],
+					version: source.version,
+					ignore: [...new Set([...(existing.ignore ?? []), ...ignore])],
+				});
+				if (ignore.length > 0) {
+					yield* pruneIgnoredPaths(updated, existingName);
+				}
+				const changed = [
+					...(yield* project.writeManifest(updated)),
+					...(yield* project.writeAgentsMd(updated)),
+				];
+				yield* Console.log(
+					[
+						`${source.packageName} comes from ${repositorySlug(source.url)}, which is already vendored at ${existingPrefix}.`,
+						`Now tracking ${source.packageName}@${source.version} there (was git-only at ${existing.ref}).`,
+						`Commit: ${changed.join(", ")}`,
+					].join("\n"),
+				);
+				return;
+			}
+
 			const [pin, ...shared] = existing.packages;
 			const updated = setRepo(manifest, existingName, {
 				...existing,
 				packages: [
-					pin,
+					pin!,
 					...[...shared, source.packageName].toSorted((a, b) =>
 						a.localeCompare(b),
 					),
@@ -168,13 +209,15 @@ export const addCommand = Command.make(
 			? ref.value
 			: yield* git.resolveTag(source.url, source.packageName, source.version);
 
-		yield* Console.log(
-			`Vendoring ${source.packageName}@${source.version} as ${prefix} (${gitRef})`,
-		);
+		const tracked = source.tracked !== false;
+		const label = tracked
+			? `${source.packageName}@${source.version}`
+			: `${vendorName} (${gitRef})`;
+		yield* Console.log(`Vendoring ${label} as ${prefix}`);
 		yield* git.subtreeAdd(prefix, source.url, gitRef);
 
 		const updated = setRepo(manifest, vendorName, {
-			packages: [source.packageName],
+			packages: tracked ? [source.packageName] : [],
 			url: source.url,
 			version: source.version,
 			ref: gitRef,
@@ -204,7 +247,8 @@ export const addCommand = Command.make(
 		},
 		{
 			command: "vendor-src add https://github.com/org/repo.git --ref v1.2.3",
-			description: "Vendor a git repository directly",
+			description:
+				"Vendor a git repository directly (git-only when the package is not installed)",
 		},
 	]),
 );

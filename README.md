@@ -76,7 +76,7 @@ vendor-src add effect
 # Prune paths you never want agents to read
 vendor-src add effect --ignore 'scratchpad/**' --ignore '**/.github/**'
 
-# Vendor a git repository directly
+# Vendor a git repository directly (git-only when the package is not installed)
 vendor-src add https://github.com/org/repo.git --ref v1.2.3
 ```
 
@@ -124,6 +124,10 @@ To keep paths out of a checkout, list globs under the repo's `ignore` in `vendor
 ```json
 "ignore": ["scratchpad/**", "**/.github/**", "**/.changeset/**"]
 ```
+
+## Git-only checkouts
+
+`vendor-src add https://github.com/org/repo.git --ref v1.2.3` works without installing an npm package. The checkout is recorded with an empty `packages` array, `check` / `sync` leave it alone, and AGENTS.md lists it by directory name and ref. Pass `--name <package>` when that package _is_ installed to pin the checkout to the installed version instead (same as adding the package name).
 
 ## Several packages from one repo
 

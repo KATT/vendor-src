@@ -34,9 +34,13 @@ export const checkCommand = Command.make(
 
 		const installed = new Map<string, string>();
 		for (const repo of Object.values(manifest.repos)) {
-			const version = yield* packages.version(pinnedPackage(repo));
+			const pin = pinnedPackage(repo);
+			if (pin === undefined) {
+				continue;
+			}
+			const version = yield* packages.version(pin);
 			if (Option.isSome(version)) {
-				installed.set(pinnedPackage(repo), version.value);
+				installed.set(pin, version.value);
 			}
 		}
 
