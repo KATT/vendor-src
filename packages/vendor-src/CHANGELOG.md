@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.4](https://github.com/KATT/vendor-src/compare/0.15.3...0.15.4) (2026-10-09)
+
+### Bug Fixes
+
+- bare git URL adds stay git-only when a same-named package is installed ([#50](https://github.com/KATT/vendor-src/issues/50)) ([4e4161c](https://github.com/KATT/vendor-src/commit/4e4161cfead3c785e32d5fbb0ece2b2f2be09af3))
+
 ## [0.15.3](https://github.com/KATT/vendor-src/compare/0.15.2...0.15.3) (2026-10-09)
 
 ### Features

@@ -1,6 +1,6 @@
 {
 	"name": "vendor-src",
-	"version": "0.15.3",
+	"version": "0.15.4",
 	"description": "Vendor dependency source into your repo with git subtree, pinned to the installed version, for coding agents.",
 	"keywords": [
 		"agents",
