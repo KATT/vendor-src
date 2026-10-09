@@ -127,7 +127,7 @@ To keep paths out of a checkout, list globs under the repo's `ignore` in `vendor
 
 ## Git-only checkouts
 
-`vendor-src add https://github.com/org/repo.git --ref v1.2.3` works without installing an npm package. The checkout is recorded with an empty `packages` array, `check` / `sync` leave it alone, and AGENTS.md lists it by directory name and ref. Pass `--name <package>` when that package _is_ installed to pin the checkout to the installed version instead (same as adding the package name).
+`vendor-src add https://github.com/org/repo.git --ref v1.2.3` is always git-only unless you pass `--name <installed-package>`. Git-only checkouts use an empty `packages` array, set `version` to the ref, and are ignored by `check` / `sync`. AGENTS.md lists them by directory name and ref. Pass `--name effect` only when you want the checkout pinned to the installed `effect` version.
 
 ## Several packages from one repo
 
