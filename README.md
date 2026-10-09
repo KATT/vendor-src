@@ -146,7 +146,7 @@ Packages published from the same monorepo share one checkout. `add @tanstack/rea
 
 ```json
 {
-	"$schema": "https://unpkg.com/vendor-src/schema.json",
+	"$schema": "./node_modules/vendor-src/schema/vendor-src.schema.json",
 	"dir": ".repos",
 	"rootAgentsMd": true,
 	"repos": {

@@ -9,7 +9,7 @@
 	"properties": {
 		"$schema": {
 			"type": "string",
-			"description": "JSON Schema URL for editor validation."
+			"description": "JSON Schema location for editor validation. vendor-src writes a path into the installed package so editors do not need to download a schema."
 		},
 		"dir": {
 			"type": "string",

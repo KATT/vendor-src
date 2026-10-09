@@ -1,5 +1,5 @@
 {
-	"$schema": "https://unpkg.com/vendor-src/schema.json",
+	"$schema": "./node_modules/vendor-src/schema/vendor-src.schema.json",
 	"dir": ".repos",
 	"rootAgentsMd": true,
 	"repos": {
