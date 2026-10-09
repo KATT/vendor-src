@@ -2,8 +2,12 @@ import { Effect, Record, Schema } from "effect";
 
 export const MANIFEST_FILENAME = "vendor-src.json";
 
-/** Published schema URL for `$schema` in vendor-src.json (resolves via package export). */
-export const MANIFEST_SCHEMA_URL = "https://unpkg.com/vendor-src/schema.json";
+/**
+ * `$schema` written into vendor-src.json. A path into the installed package,
+ * so editors validate the file without downloading a schema.
+ */
+export const MANIFEST_SCHEMA_URL =
+	"./node_modules/vendor-src/schema/vendor-src.schema.json";
 
 /** Vendor dir written into a freshly bootstrapped vendor-src.json. */
 export const DEFAULT_DIR = ".repos";

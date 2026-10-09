@@ -26,6 +26,16 @@ const effect: VendoredRepoType = {
 	ref: "effect@4.0.1",
 };
 
+describe("MANIFEST_SCHEMA_URL", () => {
+	it("points at the schema shipped with the installed package", () => {
+		assert.strictEqual(
+			MANIFEST_SCHEMA_URL,
+			"./node_modules/vendor-src/schema/vendor-src.schema.json",
+		);
+		assert.strictEqual(emptyManifest.$schema, MANIFEST_SCHEMA_URL);
+	});
+});
+
 describe("decodeManifest", () => {
 	it.effect("defaults $schema and drops legacy top-level ignore", () =>
 		Effect.gen(function* () {
