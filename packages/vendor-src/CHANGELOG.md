@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.3](https://github.com/KATT/vendor-src/compare/0.15.2...0.15.3) (2026-10-09)
+
+### Features
+
+- support git-only checkouts without an installed npm package ([#49](https://github.com/KATT/vendor-src/issues/49)) ([37a230c](https://github.com/KATT/vendor-src/commit/37a230c79cdd77a546906dc8f6bea7d79cf0e75a))
+
 ## [0.15.2](https://github.com/KATT/vendor-src/compare/0.15.1...0.15.2) (2026-10-07)
 
 - spell out the setup steps in the agent prompt ([#48](https://github.com/KATT/vendor-src/issues/48)) ([646b6af](https://github.com/KATT/vendor-src/commit/646b6afc651fce5292d762018ed21d90c1476c36))
