@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.16.0](https://github.com/KATT/vendor-src/compare/0.15.5...0.16.0) (2026-10-17)
+
+### ⚠ BREAKING CHANGES
+
+- sync git-only checkouts to the newest upstream ref ([#52](https://github.com/KATT/vendor-src/issues/52))
+
+### Features
+
+- sync git-only checkouts to the newest upstream ref ([#52](https://github.com/KATT/vendor-src/issues/52)) ([1bf4065](https://github.com/KATT/vendor-src/commit/1bf4065eab1d2a3f36f073a29f7abbb43de08f60))
+
 ## [0.15.5](https://github.com/KATT/vendor-src/compare/0.15.4...0.15.5) (2026-10-09)
 
 ### Bug Fixes
