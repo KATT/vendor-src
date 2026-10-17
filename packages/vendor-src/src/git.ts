@@ -3,7 +3,14 @@ import type { PlatformError } from "effect/PlatformError";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { Project } from "./project.ts";
-import { parseLsRemoteTags, pickTag } from "./tags.ts";
+import { compareSemver } from "./semver.ts";
+import {
+	newestMatchingTag,
+	parseLsRemoteHead,
+	parseLsRemoteTags,
+	parseVersionedTag,
+	pickTag,
+} from "./tags.ts";
 
 export class GitError extends Schema.TaggedError<GitError>()("GitError", {
 	args: Schema.Array(Schema.String),
@@ -44,11 +51,34 @@ export class TagNotFoundError extends Schema.TaggedError<TagNotFoundError>()(
 	}
 }
 
+export class UpstreamRefError extends Schema.TaggedError<UpstreamRefError>()(
+	"UpstreamRefError",
+	{
+		url: Schema.String,
+		ref: Schema.String,
+		reason: Schema.Literals(["unsupported-ref", "no-matching-tags", "no-head"]),
+	},
+) {
+	override get message() {
+		switch (this.reason) {
+			case "unsupported-ref":
+				return `can't tell what a newer version of ${this.ref} is in ${this.url}: git-only checkouts sync from a versioned tag (like v1.2.3 or pkg@1.2.3) or a commit SHA. Remove the checkout and add it again with \`--ref <tag-or-sha>\``;
+			case "no-matching-tags":
+				return `no tags in ${this.url} look like ${this.ref}`;
+			case "no-head":
+				return `${this.url} has no default branch HEAD to sync ${this.ref} to`;
+		}
+	}
+}
+
+export const isCommitSha = (ref: string): boolean =>
+	/^[0-9a-f]{7,64}$/i.test(ref);
+
 /** Prefer fully-qualified refs so tags like `effect@4.0.1` are not ambiguous. */
 export function toFetchRef(ref: string): string {
 	if (
 		ref.startsWith("refs/") ||
-		/^[0-9a-f]{7,40}$/i.test(ref) ||
+		isCommitSha(ref) ||
 		ref.startsWith("origin/")
 	) {
 		return ref;
@@ -73,6 +103,15 @@ export class Git extends Context.Service<
 			packageName: string,
 			version: string,
 		) => Effect.Effect<string, GitError | TagNotFoundError>;
+		/**
+		 * The newest upstream ref for a git-only checkout: the highest tag
+		 * sharing `ref`'s prefix (e.g. `orpc@`), or the default branch's HEAD
+		 * when `ref` is a commit SHA. Returns `ref` itself when nothing is newer.
+		 */
+		readonly latestRef: (
+			url: string,
+			ref: string,
+		) => Effect.Effect<string, GitError | UpstreamRefError>;
 		readonly subtreeAdd: (
 			prefix: string,
 			url: string,
@@ -205,6 +244,43 @@ export class Git extends Context.Service<
 				return tag;
 			});
 
+			const latestRef = Effect.fn("Git.latestRef")(function* (
+				url: string,
+				ref: string,
+			) {
+				if (isCommitSha(ref)) {
+					const stdout = yield* capture(["ls-remote", url, "HEAD"]);
+					const head = parseLsRemoteHead(stdout);
+					if (head === undefined) {
+						return yield* new UpstreamRefError({ url, ref, reason: "no-head" });
+					}
+					return head.startsWith(ref.toLowerCase()) ? ref : head;
+				}
+				const current = parseVersionedTag(ref);
+				if (current === undefined) {
+					return yield* new UpstreamRefError({
+						url,
+						ref,
+						reason: "unsupported-ref",
+					});
+				}
+				const stdout = yield* capture(["ls-remote", "--tags", url]);
+				const newest = newestMatchingTag(parseLsRemoteTags(stdout), ref);
+				if (newest === undefined) {
+					return yield* new UpstreamRefError({
+						url,
+						ref,
+						reason: "no-matching-tags",
+					});
+				}
+				return compareSemver(
+					parseVersionedTag(newest)!.version,
+					current.version,
+				) > 0
+					? newest
+					: ref;
+			});
+
 			// Fetch into a private ref instead of reading FETCH_HEAD, which any
 			// concurrent `git fetch` (e.g. an editor's auto-fetch) can overwrite.
 			const withFetchedCommit = <A>(
@@ -291,6 +367,7 @@ export class Git extends Context.Service<
 				ensureReady,
 				ensureClean,
 				resolveTag,
+				latestRef,
 				subtreeAdd,
 				replaceSubtree,
 				commitPath,

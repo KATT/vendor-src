@@ -12,6 +12,7 @@ import {
 	isolateGitConfig,
 	makeProject,
 	makeUpstream,
+	pushUpstream,
 	readFile,
 	tempDir,
 	writeFiles,
@@ -481,7 +482,172 @@ describe("vendor-src CLI", () => {
 			yield* vendorSrc(project, "list");
 			assert.include(yield* logOutput, "orpc\t(git-only)\torpc@1.0.0\tok");
 			yield* vendorSrc(project, "sync");
-			assert.include(yield* logOutput, "git-only checkout");
+			assert.include(
+				yield* logOutput,
+				"orpc: already at orpc@1.0.0 (git-only)",
+			);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("syncs a git-only tag to the newest matching tag", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "orpc", [
+				{
+					version: "1.0.0",
+					files: {
+						"src/index.ts": "export const v = 1\n",
+						"docs/guide.md": "# Guide\n",
+					},
+				},
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* initAndCommit(project);
+			yield* vendorSrc(
+				project,
+				"add",
+				upstream,
+				"--ref",
+				"orpc@1.0.0",
+				"--ignore",
+				"docs/**",
+			);
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor orpc");
+
+			yield* pushUpstream(
+				root,
+				"orpc",
+				{ "src/index.ts": "export const v = 2\n", "docs/new.md": "new\n" },
+				"orpc@1.1.0",
+			);
+			yield* pushUpstream(
+				root,
+				"orpc",
+				{ "src/index.ts": "export const v = 3\n" },
+				"orpc@2.0.0-beta.1",
+			);
+			yield* pushUpstream(
+				root,
+				"orpc",
+				{ "src/index.ts": "export const v = 4\n" },
+				"other@9.0.0",
+			);
+
+			yield* vendorSrc(project, "sync");
+			assert.include(
+				yield* logOutput,
+				"Syncing orpc: orpc@1.0.0 -> orpc@1.1.0 (git-only)",
+			);
+			assert.strictEqual(
+				yield* readFile(project, ".repos", "orpc", "src", "index.ts"),
+				"export const v = 2\n",
+			);
+			assert.isFalse(yield* exists(project, ".repos", "orpc", "docs"));
+			const manifest = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.deepStrictEqual(manifest.repos.orpc, {
+				packages: [],
+				url: upstream,
+				version: "orpc@1.1.0",
+				ref: "orpc@1.1.0",
+				ignore: ["docs/**"],
+			});
+			assert.include(
+				yield* readFile(project, ".repos", "AGENTS.md"),
+				"- `orpc/` — `orpc` (ref `orpc@1.1.0`)",
+			);
+			assert.include(
+				yield* readFile(project, "AGENTS.md"),
+				"- `orpc` (ref `orpc@1.1.0`) → `.repos/orpc`",
+			);
+			assert.include(
+				git(project, "log", "--format=%s"),
+				"chore(vendor): update .repos/orpc to orpc@1.1.0",
+			);
+			// Only the checkout is committed; manifest and AGENTS.md are left to the user.
+			assert.strictEqual(
+				git(project, "status", "--porcelain"),
+				["M .repos/AGENTS.md", " M AGENTS.md", " M vendor-src.json"].join("\n"),
+			);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("syncs a git-only commit SHA to the default branch HEAD", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const upstream = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "src/index.ts": "export const v = 1\n" } },
+			]);
+			const pinned = git(upstream, "rev-parse", "HEAD");
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* initAndCommit(project);
+			yield* vendorSrc(project, "add", upstream, "--ref", pinned);
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor lib");
+
+			yield* vendorSrc(project, "sync");
+			assert.include(yield* logOutput, `lib: already at ${pinned} (git-only)`);
+
+			const head = yield* pushUpstream(root, "lib", {
+				"src/index.ts": "export const v = 2\n",
+			});
+			yield* vendorSrc(project, "sync");
+			assert.strictEqual(
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
+				"export const v = 2\n",
+			);
+			const manifest = yield* decodeManifest(
+				yield* readFile(project, "vendor-src.json"),
+			);
+			assert.strictEqual(manifest.repos.lib?.ref, head);
+			assert.strictEqual(manifest.repos.lib?.version, head);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.live("fails on an unsupported git-only ref before syncing anything", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const lib = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "src/index.ts": "export const v = 1\n" } },
+				{ version: "1.1.0", files: { "src/index.ts": "export const v = 2\n" } },
+			]);
+			const tool = yield* makeUpstream(root, "tool", [
+				{ version: "1.0.0", files: { "src/index.ts": "export {}\n" } },
+			]);
+			const project = yield* makeProject(path.join(root, "project"));
+			yield* installPackage(project, "lib", "1.0.0", lib);
+			yield* initAndCommit(project);
+			yield* vendorSrc(project, "add", "lib");
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor lib");
+			yield* vendorSrc(project, "add", tool, "--ref", "refs/heads/main");
+			git(project, "add", "-A");
+			git(project, "commit", "-qm", "vendor tool");
+			yield* installPackage(project, "lib", "1.1.0", lib);
+			const head = git(project, "rev-parse", "HEAD");
+
+			const error = yield* vendorSrc(project, "sync").pipe(Effect.flip);
+			assert.strictEqual(error._tag, "UserError");
+			assert.include(
+				yield* errorOutput,
+				"git-only checkouts sync from a versioned tag",
+			);
+			assert.strictEqual(git(project, "rev-parse", "HEAD"), head);
+			assert.strictEqual(
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
+				"export const v = 1\n",
+			);
+
+			yield* vendorSrc(project, "sync", "lib");
+			assert.strictEqual(
+				yield* readFile(project, ".repos", "lib", "src", "index.ts"),
+				"export const v = 2\n",
+			);
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
