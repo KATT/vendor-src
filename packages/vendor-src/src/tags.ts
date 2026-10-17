@@ -1,4 +1,4 @@
-import { compareSemver } from "./semver.ts";
+import { compareSemver, parseSemver } from "./semver.ts";
 
 /** Unscoped package name, e.g. `@effect/platform-node` -> `platform-node`. */
 export function unscopedName(packageName: string): string {
@@ -66,6 +66,60 @@ function extractVersion(tag: string): string | undefined {
 	return tag.slice(separator + 1).replace(/^v/, "");
 }
 
+export interface VersionedTag {
+	/** Everything before the version, e.g. `effect@`, `v`, `npm/`, or ``. */
+	readonly prefix: string;
+	readonly version: string;
+}
+
+const versionedTagPattern =
+	/^(.*?)(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/;
+
+/** Split a tag like `effect@4.0.1` into its prefix and semver version. */
+export function parseVersionedTag(tag: string): VersionedTag | undefined {
+	const match = versionedTagPattern.exec(tag.replace(/^refs\/tags\//, ""));
+	if (!match || parseSemver(match[2]!) === undefined) {
+		return undefined;
+	}
+	return { prefix: match[1]!, version: match[2]! };
+}
+
+/**
+ * The highest-versioned tag with the same prefix as `currentTag`, or
+ * undefined when `currentTag` has no version or nothing matches. Prereleases
+ * are only considered when `currentTag` is itself a prerelease.
+ */
+export function newestMatchingTag(
+	remoteTags: Iterable<string>,
+	currentTag: string,
+): string | undefined {
+	const current = parseVersionedTag(currentTag);
+	if (current === undefined) {
+		return undefined;
+	}
+	const allowPrerelease = parseSemver(current.version)!.prerelease.length > 0;
+	let newest: { readonly tag: string; readonly version: string } | undefined;
+	for (const tag of remoteTags) {
+		const parsed = parseVersionedTag(tag);
+		if (parsed === undefined || parsed.prefix !== current.prefix) {
+			continue;
+		}
+		if (
+			!allowPrerelease &&
+			parseSemver(parsed.version)!.prerelease.length > 0
+		) {
+			continue;
+		}
+		if (
+			newest === undefined ||
+			compareSemver(parsed.version, newest.version) > 0
+		) {
+			newest = { tag, version: parsed.version };
+		}
+	}
+	return newest?.tag;
+}
+
 /** Parse `git ls-remote --tags` stdout into tag names (peeled ^{} refs dropped). */
 export function parseLsRemoteTags(stdout: string): string[] {
 	const tags: string[] = [];
@@ -81,4 +135,15 @@ export function parseLsRemoteTags(stdout: string): string[] {
 		tags.push(ref.slice("refs/tags/".length));
 	}
 	return tags;
+}
+
+/** The commit SHA of `HEAD` from `git ls-remote <url> HEAD` stdout. */
+export function parseLsRemoteHead(stdout: string): string | undefined {
+	for (const line of stdout.split("\n")) {
+		const [sha, ref] = line.trim().split(/\s+/);
+		if (ref === "HEAD" && sha !== undefined && /^[0-9a-f]{40,64}$/i.test(sha)) {
+			return sha.toLowerCase();
+		}
+	}
+	return undefined;
 }

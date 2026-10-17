@@ -10,7 +10,8 @@ import { CommandError, reportErrors } from "./shared.ts";
 
 /**
  * Sync the named vendored repos (all when empty) to the installed versions,
- * then rewrite `vendor-src.json` and the AGENTS.md files.
+ * and git-only repos to their newest upstream ref, then rewrite
+ * `vendor-src.json` and the AGENTS.md files.
  */
 export const syncRepos = Effect.fn("syncRepos")(function* (
 	names: ReadonlyArray<string>,
@@ -35,15 +36,23 @@ export const syncRepos = Effect.fn("syncRepos")(function* (
 	// upgrade, while package.json and the lockfile are still uncommitted.
 	yield* git.ensureClean(selected.map((name) => repoPrefix(manifest, name)));
 
-	let updated = 0;
+	// Resolve every target before touching a checkout, so one unresolvable
+	// repo can't leave others committed while vendor-src.json stays stale.
+	const targets: Array<{
+		readonly name: string;
+		readonly version: string;
+		readonly ref: string;
+	}> = [];
 	for (const name of selected) {
 		const entry = manifest.repos[name]!;
 		const pin = pinnedPackage(entry);
 		if (pin === undefined) {
-			yield* Console.log(
-				`Skipping ${name}: git-only checkout (pinned to ${entry.ref}; not tied to an npm install)`,
-			);
-			yield* pruneIgnoredPaths(manifest, name);
+			const ref = yield* git.latestRef(entry.url, entry.ref);
+			if (ref === entry.ref) {
+				yield* Console.log(`${name}: already at ${entry.ref} (git-only)`);
+			} else {
+				targets.push({ name, version: ref, ref });
+			}
 			continue;
 		}
 		const installed = yield* packages.version(pin);
@@ -51,26 +60,29 @@ export const syncRepos = Effect.fn("syncRepos")(function* (
 			yield* Console.error(`Skipping ${name}: ${pin} is not installed`);
 			continue;
 		}
-
 		if (installed.value === entry.version) {
 			yield* Console.log(`${name}: already at ${entry.version}`);
 		} else {
 			const ref = yield* git.resolveTag(entry.url, pin, installed.value);
-			yield* Console.log(
-				`Syncing ${name}: ${entry.version} -> ${installed.value} (${ref})`,
-			);
-			yield* git.replaceSubtree(repoPrefix(manifest, name), entry.url, ref);
-			manifest = setRepo(manifest, name, {
-				...entry,
-				version: installed.value,
-				ref,
-			});
-			updated += 1;
+			targets.push({ name, version: installed.value, ref });
 		}
+	}
 
-		// Always prune so ignore-pattern edits apply without a version bump.
+	for (const { name, version, ref } of targets) {
+		const entry = manifest.repos[name]!;
+		const detail = pinnedPackage(entry) === undefined ? "git-only" : ref;
+		yield* Console.log(
+			`Syncing ${name}: ${entry.version} -> ${version} (${detail})`,
+		);
+		yield* git.replaceSubtree(repoPrefix(manifest, name), entry.url, ref);
+		manifest = setRepo(manifest, name, { ...entry, version, ref });
+	}
+
+	// Always prune so ignore-pattern edits apply without a version bump.
+	for (const name of selected) {
 		yield* pruneIgnoredPaths(manifest, name);
 	}
+	const updated = targets.length;
 
 	// Always refresh AGENTS so format migrations apply even when versions match.
 	const changed = [
@@ -99,7 +111,7 @@ export const syncCommand = Command.make(
 	}, reportErrors),
 ).pipe(
 	Command.withDescription(
-		"Pull vendored repos to the git tags matching installed package versions",
+		"Pull vendored repos to the git tags matching installed package versions, and git-only repos to their newest upstream tag or commit",
 	),
 	Command.withExamples([
 		{

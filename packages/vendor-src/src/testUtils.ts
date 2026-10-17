@@ -111,6 +111,35 @@ export const makeUpstream = Effect.fnUntraced(function* (
 	return bare;
 });
 
+/**
+ * Commit `files` to an upstream from {@link makeUpstream} and push it to the
+ * bare repo's default branch, tagged `tag` when given. Returns the commit SHA.
+ */
+export const pushUpstream = Effect.fnUntraced(function* (
+	root: string,
+	name: string,
+	files: Record<string, string>,
+	tag?: string,
+) {
+	const path = yield* Path.Path;
+	const work = path.join(root, `${name}-work`);
+	yield* writeFiles(work, files);
+	git(work, "add", "-A");
+	git(work, "commit", "-qm", tag ?? "untagged commit");
+	if (tag !== undefined) {
+		git(work, "tag", tag);
+	}
+	git(
+		work,
+		"push",
+		"-q",
+		"--tags",
+		path.join(root, `${name}.git`),
+		"HEAD:main",
+	);
+	return git(work, "rev-parse", "HEAD");
+});
+
 /** Simulate `npm install` of `name@version` under `<dir>/node_modules`. */
 export const installPackage = (
 	dir: string,

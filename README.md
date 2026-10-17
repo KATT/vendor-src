@@ -93,7 +93,7 @@ vendor-src check --strict
 
 ### `vendor-src sync [name...]`
 
-Pull vendored repos to the git tags matching installed package versions.
+Pull vendored repos to the git tags matching installed package versions, and git-only repos to their newest upstream tag or commit.
 
 - `[name...]`: Vendored repo names to sync (default: all).
 
@@ -127,7 +127,13 @@ To keep paths out of a checkout, list globs under the repo's `ignore` in `vendor
 
 ## Git-only checkouts
 
-`vendor-src add https://github.com/org/repo.git --ref v1.2.3` is always git-only unless you pass `--name <installed-package>`. Git-only checkouts use an empty `packages` array, set `version` to the ref, and are ignored by `check` / `sync`. AGENTS.md lists them by directory name and ref. Pass `--name effect` only when you want the checkout pinned to the installed `effect` version.
+`vendor-src add https://github.com/org/repo.git --ref v1.2.3` is always git-only unless you pass `--name <installed-package>`. Git-only checkouts use an empty `packages` array, set `version` to the ref, and are ignored by `check`. AGENTS.md lists them by directory name and ref.
+
+`sync` moves git-only checkouts to the newest upstream ref:
+
+- A versioned tag moves to the highest tag with the same prefix: `orpc@1.0.0` follows `orpc@*` tags, `v1.2.3` follows `v*`. Prereleases are only picked when the current tag is a prerelease.
+- A commit SHA moves to the default branch's `HEAD`.
+- Other refs (branch names, unversioned tags) make `sync` fail before it touches any checkout. Pass `--name effect` only when you want the checkout pinned to the installed `effect` version.
 
 ## Several packages from one repo
 

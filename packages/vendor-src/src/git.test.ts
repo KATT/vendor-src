@@ -133,3 +133,43 @@ describe("Git.resolveTag", () => {
 		}).pipe(Effect.provide(NodeServices.layer)),
 	);
 });
+
+describe("Git.latestRef", () => {
+	it.live("follows matching tags and the default branch HEAD", () =>
+		Effect.gen(function* () {
+			const path = yield* Path.Path;
+			const root = yield* tempDir;
+			const project = yield* makeProject(path.join(root, "project"));
+			const upstream = yield* makeUpstream(root, "lib", [
+				{ version: "1.0.0", files: { "index.ts": "export const v = 1\n" } },
+				{ version: "1.2.0", files: { "index.ts": "export const v = 2\n" } },
+				{
+					version: "2.0.0-rc.1",
+					files: { "index.ts": "export const v = 3\n" },
+				},
+			]);
+			const head = git(upstream, "rev-parse", "HEAD");
+			const first = git(upstream, "rev-parse", "lib@1.0.0^{commit}");
+
+			const [fromTag, latest, fromSha, atHead, branch, unmatched] =
+				yield* Git.use((git) =>
+					Effect.all([
+						git.latestRef(upstream, "lib@1.0.0"),
+						git.latestRef(upstream, "lib@1.2.0"),
+						git.latestRef(upstream, first.slice(0, 12)),
+						git.latestRef(upstream, head.slice(0, 7)),
+						Effect.flip(git.latestRef(upstream, "refs/heads/main")),
+						Effect.flip(git.latestRef(upstream, "v1.0.0")),
+					]),
+				).pipe(Effect.provide(layerAt(project)));
+
+			assert.strictEqual(fromTag, "lib@1.2.0");
+			assert.strictEqual(latest, "lib@1.2.0");
+			assert.strictEqual(fromSha, head);
+			assert.strictEqual(atHead, head.slice(0, 7));
+			assert.strictEqual(branch._tag, "UpstreamRefError");
+			assert.include(branch.message, "versioned tag");
+			assert.include(unmatched.message, "no tags in");
+		}).pipe(Effect.provide(NodeServices.layer)),
+	);
+});
